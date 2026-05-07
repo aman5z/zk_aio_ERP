@@ -3975,9 +3975,10 @@ function adApplyPermissions(){
 
 function adDoLogout(){
   adTok=null; adMyEmail=""; adMyRole=""; adMyPerms=[]; adAllUsers=[];
-  document.getElementById("ad-loginScreen").style.display="flex";
   document.getElementById("lPass").value=""; document.getElementById("lErr").textContent="";
   ["tab-users","tab-dash","tab-audit","tab-drive","tab-tokens","tab-tickets"].forEach(id=>document.getElementById(id).classList.remove("hide"));
+  // Re-apply bypass so the login screen does not reappear
+  if(typeof adAutoLogin==='function') adAutoLogin();
 }
 
 function showAbout(){
@@ -5136,8 +5137,6 @@ function toggleFullScreen(){
 function _adTryAutoLogin(email, password, apiOverride) {
   if (adTok) return;           // already logged in
   if (!email || !password) return;
-  // Basic sanity check: require a non-empty email-like string
-  if (email.indexOf('@') < 1) return;
   if (apiOverride) adAPI = apiOverride;
   if (!adAPI) return;
   const emailEl = document.getElementById('lEmail');
@@ -5147,15 +5146,44 @@ function _adTryAutoLogin(email, password, apiOverride) {
   adDoLogin();
 }
 
+// _adBypassLogin — bypass the AD login screen using the ERP session.
+// Called when no GAS credentials are configured; the user is already
+// authenticated in the main app so showing a second login is unnecessary.
+function _adBypassLogin() {
+  if (adTok) return;
+  const u = (typeof STATE !== 'undefined' && STATE && STATE.user) ? STATE.user : null;
+  const dispName = u ? (u.username || u.name || 'admin') : 'admin';
+  const role = (u && (u.role === 'admin' || u.role === 'Admin')) ? 'Admin' : 'User';
+  adTok = '__erp_session__';
+  adMyEmail = dispName;
+  adMyRole = role;
+  adMyPerms = DEFAULT_ROLE_PERMS[role] || [];
+  const ls = document.getElementById('ad-loginScreen');
+  if (ls) ls.style.display = 'none';
+  const sbAdmin = document.getElementById('sbAdmin');
+  const sbRole  = document.getElementById('sbRole');
+  const termP   = document.getElementById('termP');
+  const tlTitle = document.getElementById('tlTitle');
+  if (sbAdmin) sbAdmin.textContent = '👤 ' + dispName;
+  if (sbRole)  sbRole.textContent  = '[' + role + ']';
+  if (termP)   termP.textContent   = 'AD\\' + dispName + '>';
+  if (tlTitle) tlTitle.textContent = 'Active Directory — [aman5z.in] — ' + role;
+  adApplyPermissions();
+}
+
 // adAutoLogin — called from showADSection() to avoid repeating login
-// Uses GAS credentials already stored in localStorage (same as _adTryAutoLogin)
+// Uses GAS credentials if available; otherwise bypasses using the ERP session.
 function adAutoLogin() {
   if (adTok) return; // already authenticated
   const em  = localStorage.getItem('gasEmail') || '';
   const pw  = localStorage.getItem('gasPass')  || '';
   const url = localStorage.getItem('gasUrl')   || '';
   if (url) adAPI = url;
-  _adTryAutoLogin(em, pw);
+  if (em && pw) {
+    _adTryAutoLogin(em, pw);
+  } else {
+    _adBypassLogin();
+  }
 }
 
 window.addEventListener('DOMContentLoaded', function() {
@@ -5163,7 +5191,11 @@ window.addEventListener('DOMContentLoaded', function() {
   const pw = localStorage.getItem('gasPass')  || '';
   const url = localStorage.getItem('gasUrl')  || '';
   if (url) adAPI = url;           // refresh in case it changed after script init
-  _adTryAutoLogin(em, pw);
+  if (em && pw) {
+    _adTryAutoLogin(em, pw);
+  } else {
+    _adBypassLogin();
+  }
 });
 </script>
 
