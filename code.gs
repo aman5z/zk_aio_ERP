@@ -52,9 +52,11 @@ function getCountersPublic(e) {
   ensureCountersSheet();
   const sheet = ss().getSheetByName("Counters");
   const data  = sheet.getDataRange().getValues();
-  const cb    = e && e.parameter && e.parameter.callback;
+  const rawCb = e && e.parameter && e.parameter.callback;
+  // Validate callback name: alphanumeric + underscore only (JSONP safety)
+  const cb = rawCb && /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(rawCb) ? rawCb : null;
   if (cb) {
-    // JSONP response — wrap data in callback function call
+    // JSONP response — wrap data in validated callback function call
     return ContentService
       .createTextOutput(cb + "(" + JSON.stringify(data) + ")")
       .setMimeType(ContentService.MimeType.JAVASCRIPT);

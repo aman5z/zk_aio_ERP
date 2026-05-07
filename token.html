@@ -246,7 +246,7 @@ body{
 
 <div class="topbar">
   <div class="topbar-left">
-    <a class="tb-btn" href="d.html" target="_blank">🔐 Dashboard</a>
+    <a class="tb-btn" href="d.html" target="_blank" rel="noopener">🔐 Dashboard</a>
     <button class="tb-btn" onclick="openSetup()" title="Change GAS URL">⚙️</button>
   </div>
   <div class="topbar-center">
@@ -281,7 +281,9 @@ function openSetup(){
 }
 function saveGasUrl(){
   const val = document.getElementById('gasUrlInput').value.trim();
-  if(!val || !val.startsWith('http')){ document.getElementById('setupErr').textContent = 'Enter a valid URL'; return; }
+  let parsed;
+  try { parsed = new URL(val); } catch(e) { parsed = null; }
+  if(!parsed || (parsed.protocol !== 'https:' && parsed.protocol !== 'http:')){ document.getElementById('setupErr').textContent = 'Enter a valid https:// URL'; return; }
   API = val;
   localStorage.setItem(LS_KEY, API);
   document.getElementById('setupOverlay').style.display = 'none';
