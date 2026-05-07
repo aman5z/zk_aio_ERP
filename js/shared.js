@@ -720,7 +720,7 @@ async function onLoginSuccess(user){
     offlineBanner.innerHTML = '⚠ SERVER OFFLINE MODE — displaying GAS Helpdesk and Drive only. Database and attendance features are disabled.';
     el('appShell').insertBefore(offlineBanner, el('appShell').firstChild);
     
-    ['sb-dashboard','sb-calendar','sb-history','sb-users','sb-messages','sb-notes','sb-sql','sb-attlogs'].forEach(id=>{
+    ['sb-dashboard','sb-calendar','sb-history','sb-employees','sb-messages','sb-notes','sb-sql','sb-attlogs'].forEach(id=>{
       if(el(id)) el(id).style.display='none';
     });
     showPage('tickets');
@@ -747,7 +747,7 @@ function applyPermissions(){
   };
   Object.entries(rules).forEach(([sid,perm])=>{
     const el2=el(sid);
-    if(el2)el2.style.display=STATE.isAdmin?'':'none';
+    if(el2)el2.style.display=(STATE.isAdmin||can(perm))?'':'none';
   });
   if(!STATE.isAdmin){
     el('sb-admin').style.display='none';

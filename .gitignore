@@ -27,6 +27,7 @@ dashboard_users.json
 employees_export.csv
 employees_export.xlsx
 .flask_secret
+config.json
 
 # OS
 .DS_Store

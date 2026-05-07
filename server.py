@@ -6160,6 +6160,10 @@ def sos_status():
     now = time.time()
     with _sos_lock:
         has_alert = _sos_last_alert is not None
+        # Prune entries with no heartbeat for >120 s to prevent unbounded growth
+        stale = [cid for cid, ts in _sos_teachers.items() if now - ts >= 120]
+        for cid in stale:
+            del _sos_teachers[cid]
         # Count teachers that sent a heartbeat in the last 45 seconds
         active = [cid for cid, ts in _sos_teachers.items() if now - ts < 45]
         connected = len(active)

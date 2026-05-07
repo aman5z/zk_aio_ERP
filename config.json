@@ -25,7 +25,7 @@
     "log_level": "INFO",
     "name":"Your-System-Name",
     "telegram": {
-    "bot_token": "8744699402:AAGaLz0HWIBKYHzWBfr_qr6U3BrUe7lJ2A4",
+    "bot_token": "YOUR_TELEGRAM_BOT_TOKEN",
     "chat_id": "YOUR_TELEGRAM_CHAT_ID",
     "enabled": true,
     "notifications": {
