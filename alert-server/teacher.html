@@ -505,7 +505,7 @@
   setInterval(sendHeartbeat, 20000);
 
   window.addEventListener('beforeunload', () => {
-    navigator.sendBeacon('/sos/offline', JSON.stringify({id: _clientId}));
+    navigator.sendBeacon('/sos/offline', new Blob([JSON.stringify({id: _clientId})], {type: 'application/json'}));
   });
 
   // ---- SSE CONNECTION ----
