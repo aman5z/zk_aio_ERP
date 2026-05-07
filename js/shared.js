@@ -16,7 +16,7 @@ const CFG = {
     if(!sv||(bad&&real))return window.location.origin;
     return sv.replace(/\/$/,'');
   },
-  get gasUrl(){ return ls('gasUrl')||''; },
+  get gasUrl(){ return ls('gasUrl')||'https://script.google.com/macros/s/AKfycbyxhqVi3BPh_ksWRJ5n9TWLGBK8HbEhxqqwqV4Bfft7VJJlGxRWI9PPS4Zhw_aKN1TOQQ/exec'; },
   get gasEmail(){ return ls('gasEmail')||''; },
   get gasPass(){ return ls('gasPass')||''; },
   get termWsUrl(){ return ls('termWsUrl')||''; },
