@@ -231,7 +231,7 @@ body{
 <div id="setupOverlay" class="overlay-base" style="display:none">
   <div class="setup-box">
     <h2>⚙️ Token Display Setup</h2>
-    <p>Enter your Google Apps Script deployment URL.<br>This is the same URL used in the ZKTeco dashboard settings.</p>
+    <p>The built-in GAS URL is pre-configured. You can override it here if needed.<br>Leave blank to revert to the default.</p>
     <input id="gasUrlInput" class="setup-input" type="url"
            placeholder="https://script.google.com/macros/s/.../exec"
            oninput="document.getElementById('setupErr').textContent=''">
@@ -262,10 +262,12 @@ body{
 
 <script>
 // ── GAS API URL ──
-// Read from localStorage (same key as d.html dashboard: erp_gasUrl)
-// Falls back to empty; user is prompted to configure if blank.
-const LS_KEY = 'erp_gasUrl';
-let API = localStorage.getItem(LS_KEY) || '';
+// Reads from localStorage (same key as d.html dashboard: gasUrl).
+// Falls back to the built-in deployment URL so the display works out of the box.
+// To override, click the ⚙️ button in the top-bar.
+const LS_KEY = 'gasUrl';
+const DEFAULT_GAS_URL = 'https://script.google.com/macros/s/AKfycbyxhqVi3BPh_ksWRJ5n9TWLGBK8HbEhxqqwqV4Bfft7VJJlGxRWI9PPS4Zhw_aKN1TOQQ/exec';
+let API = localStorage.getItem(LS_KEY) || DEFAULT_GAS_URL;
 
 let lastUpdated  = {};
 let initialized  = false;
@@ -275,20 +277,29 @@ let cbCount = 0;
 /* ── SETUP OVERLAY ── */
 function openSetup(){
   const overlay = document.getElementById('setupOverlay');
-  document.getElementById('gasUrlInput').value = API || '';
+  // Show the current override (if any) — not the default, to keep it clear
+  document.getElementById('gasUrlInput').value = localStorage.getItem(LS_KEY) || '';
   document.getElementById('setupErr').textContent = '';
   overlay.style.display = 'flex';
 }
 function saveGasUrl(){
   const val = document.getElementById('gasUrlInput').value.trim();
-  let parsed;
-  try { parsed = new URL(val); } catch(e) { parsed = null; }
-  if(!parsed || (parsed.protocol !== 'https:' && parsed.protocol !== 'http:')){ document.getElementById('setupErr').textContent = 'Enter a valid https:// URL'; return; }
-  API = val;
-  localStorage.setItem(LS_KEY, API);
+  // Allow empty = revert to built-in default
+  if(val === ''){
+    localStorage.removeItem(LS_KEY);
+    API = DEFAULT_GAS_URL;
+  } else {
+    let parsed;
+    try { parsed = new URL(val); } catch(e) { parsed = null; }
+    if(!parsed || (parsed.protocol !== 'https:' && parsed.protocol !== 'http:')){
+      document.getElementById('setupErr').textContent = 'Enter a valid https:// URL (or leave blank for default)';
+      return;
+    }
+    API = val;
+    localStorage.setItem(LS_KEY, API);
+  }
   document.getElementById('setupOverlay').style.display = 'none';
   if(!audioUnlocked){
-    // Show the tap-to-start overlay so user unlocks audio
     document.getElementById('unmuteOverlay').style.display = 'flex';
   } else {
     load();
@@ -392,11 +403,6 @@ function jsonp(params, callback){
 
 /* ── UNLOCK + FULLSCREEN ── */
 function unlock(){
-  if(!API){
-    document.getElementById('unmuteOverlay').style.display = 'none';
-    openSetup();
-    return;
-  }
   document.getElementById("unmuteOverlay").style.display = "none";
 
   // Fullscreen
@@ -454,7 +460,6 @@ function triggerFlash(el){
 /* ── LOAD ── */
 function load(){
   if(!audioUnlocked) return;
-  if(!API){ openSetup(); return; }
   jsonp({action:"getCountersPublic"}, function(data){
     if(!Array.isArray(data)) return;
     const grid = document.getElementById("grid");
@@ -500,11 +505,8 @@ function load(){
 
 setInterval(function(){ if(audioUnlocked) load(); }, 3000);
 
-// If no API URL is saved, show setup overlay immediately (DOM is already ready here)
-if(!API){
-  document.getElementById('unmuteOverlay').style.display = 'none';
-  document.getElementById('setupOverlay').style.display = 'flex';
-}
+// API is always set (built-in default), so go straight to the tap-to-start overlay.
+// setupOverlay is only shown when the user clicks ⚙️ to override the URL.
 </script>
 </body>
 </html>
