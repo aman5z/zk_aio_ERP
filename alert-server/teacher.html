@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Emergency Alert System</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@700;900&family=Barlow:wght@400;600&display=swap');
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --red: #ff1a1a;
+    --amber: #ff8c00;
+    --blue: #1a6fff;
+    --green: #00cc66;
+  }
+
+  body {
+    font-family: 'Barlow', sans-serif;
+    background: #0a0a0a;
+    color: #fff;
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ---- STANDBY MODE ---- */
+  #standby {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    background: #0a0a0a;
+  }
+
+  .standby-icon { font-size: 48px; opacity: 0.3; }
+
+  .standby-title {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: #333;
+  }
+
+  .standby-sub {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 12px;
+    color: #222;
+    letter-spacing: 2px;
+  }
+
+  .standby-pulse {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: #00cc66;
+    animation: pulse 3s infinite;
+    margin-top: 8px;
+  }
+
+  @keyframes pulse { 0%,100%{opacity:0.3} 50%{opacity:1} }
+
+  /* ---- ALERT MODE ---- */
+  #alert-screen {
+    display: none;
+    flex: 1;
+    flex-direction: column;
+    position: relative;
+    overflow: hidden;
+  }
+
+  #alert-screen.active { display: flex; }
+
+  /* Animated background */
+  .alert-bg {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+  }
+
+  .alert-bg.critical { background: #0d0000; }
+  .alert-bg.high { background: #0d0600; }
+  .alert-bg.info { background: #000a1a; }
+
+  .stripe-overlay {
+    position: absolute;
+    inset: 0;
+    background-repeating-linear-gradient: repeating-linear-gradient(
+      45deg,
+      transparent,
+      transparent 40px,
+      rgba(255,26,26,0.04) 40px,
+      rgba(255,26,26,0.04) 80px
+    );
+    background: repeating-linear-gradient(
+      45deg,
+      transparent,
+      transparent 40px,
+      rgba(255,255,255,0.02) 40px,
+      rgba(255,255,255,0.02) 80px
+    );
+  }
+
+  /* Top emergency bar */
+  .top-bar {
+    position: relative;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 32px;
+    height: 56px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 13px;
+    letter-spacing: 2px;
+  }
+
+  .top-bar.critical { background: var(--red); color: #fff; }
+  .top-bar.high { background: var(--amber); color: #000; }
+  .top-bar.info { background: var(--blue); color: #fff; }
+
+  .top-bar-left { display: flex; align-items: center; gap: 12px; }
+
+  .flash-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: currentColor;
+    animation: flash 0.8s infinite;
+  }
+
+  @keyframes flash { 0%,100%{opacity:1} 50%{opacity:0} }
+
+  /* Main content */
+  .alert-content {
+    position: relative;
+    z-index: 10;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 40px 48px;
+  }
+
+  .school-name {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 4px;
+    color: #555;
+    text-transform: uppercase;
+    margin-bottom: 32px;
+  }
+
+  .alert-icon-wrap {
+    font-size: 72px;
+    margin-bottom: 24px;
+    animation: icon-pulse 1s infinite;
+  }
+
+  @keyframes icon-pulse {
+    0%,100% { transform: scale(1); }
+    50% { transform: scale(1.08); }
+  }
+
+  .alert-level-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 20px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    border: 2px solid;
+    margin-bottom: 24px;
+  }
+
+  .badge-critical { border-color: var(--red); color: var(--red); }
+  .badge-high { border-color: var(--amber); color: var(--amber); }
+  .badge-info { border-color: var(--blue); color: var(--blue); }
+
+  .alert-title-main {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: clamp(36px, 6vw, 72px);
+    font-weight: 900;
+    text-transform: uppercase;
+    line-height: 1.05;
+    margin-bottom: 12px;
+    letter-spacing: -1px;
+    color: #fff;
+    max-width: 900px;
+  }
+
+  .alert-title-ar {
+    font-size: clamp(24px, 3vw, 40px);
+    font-weight: 600;
+    color: rgba(255,255,255,0.6);
+    margin-bottom: 28px;
+    direction: rtl;
+    font-family: 'Barlow', sans-serif;
+  }
+
+  .alert-message {
+    font-size: clamp(16px, 2vw, 22px);
+    color: rgba(255,255,255,0.8);
+    max-width: 700px;
+    line-height: 1.6;
+    margin-bottom: 40px;
+  }
+
+  /* Instructions */
+  .instructions-box {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.12);
+    padding: 28px 36px;
+    max-width: 720px;
+    width: 100%;
+    text-align: left;
+  }
+
+  .instructions-label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 3px;
+    color: #888;
+    text-transform: uppercase;
+    margin-bottom: 14px;
+  }
+
+  .instructions-text {
+    font-size: 16px;
+    line-height: 1.8;
+    color: rgba(255,255,255,0.85);
+    white-space: pre-line;
+  }
+
+  /* Bottom bar */
+  .bottom-bar {
+    position: relative;
+    z-index: 10;
+    padding: 14px 32px;
+    background: rgba(0,0,0,0.5);
+    border-top: 1px solid rgba(255,255,255,0.08);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 12px;
+    color: #555;
+    letter-spacing: 1px;
+  }
+
+  /* ALL-CLEAR */
+  #allclear-screen {
+    display: none;
+    flex: 1;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: #001a0a;
+    text-align: center;
+    gap: 20px;
+  }
+
+  #allclear-screen.active { display: flex; }
+
+  .allclear-icon { font-size: 80px; }
+
+  .allclear-title {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 64px;
+    font-weight: 900;
+    text-transform: uppercase;
+    color: var(--green);
+    letter-spacing: -1px;
+  }
+
+  .allclear-sub {
+    color: rgba(255,255,255,0.5);
+    font-size: 16px;
+    font-family: 'Share Tech Mono', monospace;
+    letter-spacing: 2px;
+  }
+
+  /* Connection status */
+  #conn-badge {
+    position: fixed;
+    top: 12px;
+    right: 16px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 2px;
+    padding: 4px 10px;
+    border-radius: 2px;
+    z-index: 999;
+    background: #111;
+    color: #444;
+    transition: all 0.3s;
+  }
+
+  #conn-badge.connected { color: var(--green); }
+  #conn-badge.disconnected { color: var(--red); animation: flash 1s infinite; }
+</style>
+</head>
+<body>
+
+<div id="conn-badge">CONNECTING...</div>
+
+<!-- Standby -->
+<div id="standby">
+  <div class="standby-icon">📡</div>
+  <div class="standby-title">Emergency Alert System</div>
+  <div class="standby-sub">Monitoring for alerts from IT Admin</div>
+  <div class="standby-pulse"></div>
+</div>
+
+<!-- Alert Screen -->
+<div id="alert-screen">
+  <div class="alert-bg" id="alert-bg"></div>
+  <div class="stripe-overlay"></div>
+
+  <div class="top-bar" id="top-bar">
+    <div class="top-bar-left">
+      <div class="flash-dot"></div>
+      <span id="top-level-text">EMERGENCY ALERT</span>
+    </div>
+    <span id="top-time"></span>
+  </div>
+
+  <div class="alert-content">
+    <div class="school-name">🏫 SCHOOL EMERGENCY BROADCAST</div>
+
+    <div class="alert-icon-wrap" id="alert-icon">⚠️</div>
+
+    <div class="alert-level-badge" id="level-badge">CRITICAL</div>
+
+    <div class="alert-title-main" id="main-title">EMERGENCY ALERT</div>
+    <div class="alert-title-ar" id="main-title-ar"></div>
+    <div class="alert-message" id="main-message"></div>
+
+    <div class="instructions-box" id="instr-box" style="display:none">
+      <div class="instructions-label">⬇ Teacher Instructions — Follow immediately</div>
+      <div class="instructions-text" id="instr-text"></div>
+    </div>
+  </div>
+
+  <div class="bottom-bar">
+    <span>⏱ Alert issued: <span id="bottom-time">--:--</span></span>
+    <span>DO NOT DISMISS — Await admin all-clear</span>
+    <span id="bottom-level">LEVEL: --</span>
+  </div>
+</div>
+
+<!-- All Clear -->
+<div id="allclear-screen">
+  <div class="allclear-icon">✅</div>
+  <div class="allclear-title">ALL CLEAR</div>
+  <div class="allclear-sub">Emergency has ended — Resume normal operations</div>
+  <div style="color:#444;font-family:'Share Tech Mono',monospace;font-size:12px;margin-top:16px">Standby mode resumes in <span id="countdown">10</span>s</div>
+</div>
+
+<!-- Permission overlay -->
+<div id="permission-overlay" style="
+  position:fixed;inset:0;background:#000;z-index:9999;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;
+  font-family:'Barlow Condensed',sans-serif;text-align:center;padding:32px;
+">
+  <div style="font-size:64px">🔊</div>
+  <div style="font-size:36px;font-weight:900;letter-spacing:2px;text-transform:uppercase;color:#fff">
+    Emergency Alert System
+  </div>
+  <div style="font-size:18px;color:#aaa;max-width:480px;font-family:'Barlow',sans-serif;line-height:1.6">
+    This device will receive emergency alerts with siren sound.<br>
+    <strong style="color:#fff">Keep your device volume at maximum.</strong>
+  </div>
+  <button onclick="grantPermission()" style="
+    background:#ff1a1a;color:#fff;border:none;
+    padding:18px 48px;font-family:'Barlow Condensed',sans-serif;
+    font-size:22px;font-weight:700;letter-spacing:3px;text-transform:uppercase;
+    cursor:pointer;margin-top:8px;
+  ">✓ ACTIVATE — I'M READY</button>
+  <div style="font-size:13px;color:#444;font-family:'Share Tech Mono',monospace;letter-spacing:1px">
+    Tap once to enable sound · Leave this tab open all day
+  </div>
+</div>
+
+<script>
+  let audioCtx = null;
+  let sirenNode = null;
+  let sirenGain = null;
+  let sirenRunning = false;
+
+  function grantPermission() {
+    // Create AudioContext on user gesture — this unlocks audio forever for this page
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+    // Play a tiny silent buffer to fully unlock
+    const buf = audioCtx.createBuffer(1, 1, 22050);
+    const src = audioCtx.createBufferSource();
+    src.buffer = buf;
+    src.connect(audioCtx.destination);
+    src.start(0);
+
+    // Hide overlay
+    document.getElementById('permission-overlay').style.display = 'none';
+
+    // Show ready badge
+    const badge = document.getElementById('conn-badge');
+    badge.textContent = '🔊 SOUND READY';
+    badge.style.color = '#00cc66';
+    setTimeout(() => { badge.textContent = 'CONNECTING...'; badge.style.color = ''; }, 2000);
+  }
+
+  // Real wailing siren using oscillator frequency modulation
+  function startSiren(level) {
+    if (!audioCtx) return;
+    if (sirenRunning) stopSiren();
+
+    sirenRunning = true;
+    sirenGain = audioCtx.createGain();
+    sirenGain.gain.value = 0.9; // Near-max volume
+    sirenGain.connect(audioCtx.destination);
+
+    if (level === 'critical') {
+      // Classic emergency wail: sweeps 600Hz → 1200Hz repeatedly
+      sirenNode = audioCtx.createOscillator();
+      sirenNode.type = 'sawtooth';
+      sirenNode.connect(sirenGain);
+
+      const lfo = audioCtx.createOscillator();
+      const lfoGain = audioCtx.createGain();
+      lfo.frequency.value = 0.6; // wail speed
+      lfoGain.gain.value = 300;  // sweep range
+      lfo.connect(lfoGain);
+      lfoGain.connect(sirenNode.frequency);
+      sirenNode.frequency.value = 900; // base freq
+
+      lfo.start();
+      sirenNode.start();
+      window._sirenLfo = lfo;
+
+    } else if (level === 'high') {
+      // Fast two-tone horn: alternates 660Hz / 880Hz
+      sirenNode = audioCtx.createOscillator();
+      sirenNode.type = 'square';
+      sirenNode.connect(sirenGain);
+      sirenNode.frequency.value = 660;
+      sirenNode.start();
+
+      let toggle = false;
+      window._hornInterval = setInterval(() => {
+        if (!sirenRunning) return;
+        toggle = !toggle;
+        sirenNode.frequency.setTargetAtTime(toggle ? 880 : 660, audioCtx.currentTime, 0.01);
+      }, 400);
+
+    } else {
+      // Info: gentle triple beep
+      [0, 0.4, 0.8].forEach(offset => {
+        const osc = audioCtx.createOscillator();
+        const g = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = 880;
+        osc.connect(g); g.connect(audioCtx.destination);
+        g.gain.setValueAtTime(0.5, audioCtx.currentTime + offset);
+        g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + offset + 0.3);
+        osc.start(audioCtx.currentTime + offset);
+        osc.stop(audioCtx.currentTime + offset + 0.35);
+      });
+    }
+  }
+
+  function stopSiren() {
+    sirenRunning = false;
+    clearInterval(window._hornInterval);
+    try { window._sirenLfo && window._sirenLfo.stop(); } catch(e) {}
+    try { sirenNode && sirenNode.stop(); } catch(e) {}
+    try { sirenGain && sirenGain.disconnect(); } catch(e) {}
+    sirenNode = null; sirenGain = null; window._sirenLfo = null;
+  }
+
+  // Legacy wrapper kept for all-clear tone
+  function playAlarm(level) { startSiren(level); }
+
+  function stopAlarm() { stopSiren(); }
+
+  // ---- SSE CONNECTION ----
+  let evtSource;
+
+  function connect() {
+    evtSource = new EventSource('/events');
+
+    evtSource.onopen = () => {
+      document.getElementById('conn-badge').textContent = 'CONNECTED';
+      document.getElementById('conn-badge').className = 'connected';
+    };
+
+    evtSource.onmessage = (e) => {
+      const data = JSON.parse(e.data);
+      if (data.type === 'connected') return;
+      if (data.type === 'alert') showAlert(data);
+      if (data.type === 'clear') showAllClear();
+    };
+
+    evtSource.onerror = () => {
+      document.getElementById('conn-badge').textContent = 'RECONNECTING...';
+      document.getElementById('conn-badge').className = 'disconnected';
+      evtSource.close();
+      setTimeout(connect, 3000);
+    };
+  }
+
+  connect();
+
+  // ---- SHOW ALERT ----
+  function showAlert(data) {
+    // Hide others
+    document.getElementById('standby').style.display = 'none';
+    document.getElementById('allclear-screen').classList.remove('active');
+
+    // Set level visuals
+    const level = data.level || 'critical';
+    const icons = { critical: '🚨', high: '⚠️', info: 'ℹ️' };
+    const topLabels = { critical: 'CRITICAL EMERGENCY ALERT', high: 'HIGH PRIORITY ALERT', info: 'INFORMATION ALERT' };
+    const badgeClass = { critical: 'badge-critical', high: 'badge-high', info: 'badge-info' };
+
+    document.getElementById('alert-bg').className = `alert-bg ${level}`;
+    document.getElementById('top-bar').className = `top-bar ${level}`;
+    document.getElementById('top-level-text').textContent = topLabels[level] || 'ALERT';
+    document.getElementById('alert-icon').textContent = icons[level] || '⚠️';
+    document.getElementById('level-badge').className = `alert-level-badge ${badgeClass[level]}`;
+    document.getElementById('level-badge').textContent = level.toUpperCase();
+    document.getElementById('bottom-level').textContent = `LEVEL: ${level.toUpperCase()}`;
+
+    // Content
+    document.getElementById('main-title').textContent = data.title || 'EMERGENCY ALERT';
+    document.getElementById('main-message').textContent = data.message || '';
+
+    const instrBox = document.getElementById('instr-box');
+    if (data.instructions) {
+      instrBox.style.display = 'block';
+      document.getElementById('instr-text').textContent = data.instructions;
+    } else {
+      instrBox.style.display = 'none';
+    }
+
+    // Time
+    const t = new Date(data.timestamp);
+    const tStr = t.toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit'});
+    document.getElementById('bottom-time').textContent = tStr;
+    document.getElementById('top-time').textContent = tStr;
+
+    // Show
+    document.getElementById('alert-screen').classList.add('active');
+
+    // Start continuous siren
+    startSiren(level);
+
+    // For critical: restart siren every 20s (keeps it wailing continuously)
+    if (level === 'critical') {
+      window._alarmInterval = setInterval(() => {
+        stopSiren();
+        setTimeout(() => startSiren('critical'), 200);
+      }, 20000);
+    }
+
+    // Request fullscreen
+    try { document.documentElement.requestFullscreen(); } catch(e) {}
+
+    // Update clock
+    setInterval(() => {
+      document.getElementById('top-time').textContent =
+        new Date().toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+    }, 1000);
+  }
+
+  // ---- ALL CLEAR ----
+  function showAllClear() {
+    clearInterval(window._alarmInterval);
+    stopAlarm();
+
+    document.getElementById('alert-screen').classList.remove('active');
+    document.getElementById('standby').style.display = 'none';
+    document.getElementById('allclear-screen').classList.add('active');
+
+    // Play gentle ascending all-clear tone
+    if (audioCtx) {
+      [523, 659, 784, 1047].forEach((freq, i) => {
+        const osc = audioCtx.createOscillator();
+        const g = audioCtx.createGain();
+        osc.connect(g); g.connect(audioCtx.destination);
+        osc.frequency.value = freq;
+        osc.type = 'sine';
+        const t = audioCtx.currentTime + i * 0.3;
+        g.gain.setValueAtTime(0.4, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.8);
+        osc.start(t); osc.stop(t + 0.9);
+      });
+    }
+
+    // Return to standby after 10s
+    let sec = 10;
+    const cd = setInterval(() => {
+      sec--;
+      document.getElementById('countdown').textContent = sec;
+      if (sec <= 0) {
+        clearInterval(cd);
+        document.getElementById('allclear-screen').classList.remove('active');
+        document.getElementById('standby').style.display = 'flex';
+      }
+    }, 1000);
+  }
+</script>
+</body>
+</html>
