@@ -242,7 +242,7 @@ function nextToken(e) {
   return j({error:"Not found"});
 }
 function previousToken(e) {
-  const u = auth(e,"Admin"); if (!u) return j("Unauthorized");
+  const u = authPerm(e,"tokens.manage"); if (!u) return j("Unauthorized");
   const sheet = ss().getSheetByName("Counters"), data = sheet.getDataRange().getValues();
   for (let i = 1; i < data.length; i++) {
     if (data[i][0]===e.parameter.counterId) {
@@ -267,7 +267,7 @@ function repeatToken(e) {
   return j({error:"Not found"});
 }
 function addCounter(e) {
-  const u = auth(e,"Admin"); if (!u) return j("Unauthorized");
+  const u = authPerm(e,"tokens.manage"); if (!u) return j("Unauthorized");
   ensureCountersSheet();
   const sheet = ss().getSheetByName("Counters");
   const cnt = sheet.getDataRange().getValues().length-1;
@@ -277,7 +277,7 @@ function addCounter(e) {
   return j({success:true});
 }
 function renameCounter(e) {
-  const u = auth(e,"Admin"); if (!u) return j("Unauthorized");
+  const u = authPerm(e,"tokens.manage"); if (!u) return j("Unauthorized");
   const sheet = ss().getSheetByName("Counters"), data = sheet.getDataRange().getValues();
   for (let i = 1; i < data.length; i++) {
     if (data[i][0]===e.parameter.counterId) { sheet.getRange(i+1,2).setValue(e.parameter.newName); return j({success:true}); }
@@ -285,7 +285,7 @@ function renameCounter(e) {
   return j({error:"Not found"});
 }
 function deleteCounter(e) {
-  const u = auth(e,"Admin"); if (!u) return j("Unauthorized");
+  const u = authPerm(e,"tokens.manage"); if (!u) return j("Unauthorized");
   const sheet = ss().getSheetByName("Counters"), data = sheet.getDataRange().getValues();
   for (let i = 1; i < data.length; i++) {
     if (data[i][0]===e.parameter.counterId) { auditLog(u.email,"DELETE_COUNTER","Deleted: "+data[i][1]); sheet.deleteRow(i+1); return j({success:true}); }
@@ -293,7 +293,7 @@ function deleteCounter(e) {
   return j({error:"Not found"});
 }
 function resetCounter(e) {
-  const u = auth(e,"Admin"); if (!u) return j("Unauthorized");
+  const u = authPerm(e,"tokens.manage"); if (!u) return j("Unauthorized");
   const sheet = ss().getSheetByName("Counters"), data = sheet.getDataRange().getValues();
   for (let i = 1; i < data.length; i++) {
     if (data[i][0]===e.parameter.counterId) {
@@ -430,7 +430,7 @@ function auditLog(actor,action,detail) {
   catch(err){Logger.log("Audit error: "+err.message);}
 }
 function getAuditLog(e) {
-  const u = auth(e,"Admin"); if (!u) return j("Unauthorized");
+  const u = authPerm(e,"audit"); if (!u) return j("Unauthorized");
   try{const s=ss().getSheetByName("AuditLog");if(!s)return ContentService.createTextOutput("[]").setMimeType(ContentService.MimeType.JSON);return ContentService.createTextOutput(JSON.stringify(s.getDataRange().getValues())).setMimeType(ContentService.MimeType.JSON);}
   catch(err){return j("Error: "+err.message);}
 }
@@ -467,6 +467,7 @@ function j(v){return ContentService.createTextOutput(JSON.stringify(v)).setMimeT
 function hash(pw){const raw=Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,pw);return raw.map(b=>(b<0?b+256:b).toString(16).padStart(2,"0")).join("");}
 function auth(e,role){const s=CacheService.getScriptCache().get(e.parameter.token||"");if(!s)return null;try{const p=JSON.parse(s);if(new Date()>new Date(p.expiry))return null;if(role&&p.role!==role)return null;return p;}catch(err){return null;}}
 function authAny(e){const s=CacheService.getScriptCache().get(e.parameter.token||"");if(!s)return null;try{const p=JSON.parse(s);if(new Date()>new Date(p.expiry))return null;return p;}catch(err){return null;}}
+function authPerm(e,perm){const u=authAny(e);if(!u)return null;if(u.role==="Admin"||(u.perms||[]).includes(perm))return u;return null;}
 
 /* ── ONE-TIME SETUP ── */
 function authorizeNow(){const f=DriveApp.getFolderById(FOLDER_ID);Logger.log("Drive OK: "+f.getName()+" | Storage: "+(DriveApp.getStorageUsed()/1073741824).toFixed(2)+" GB");}
