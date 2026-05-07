@@ -847,6 +847,20 @@ select.form-control option{background:var(--card)}
   transition:all .15s;margin-right:8px;
 }
 .theme-btn.active{border-color:var(--accent);color:var(--accent)}
+#themePicker{
+  display:none;position:fixed;top:calc(var(--header-h) + 2px);right:10px;
+  background:var(--card);border:1px solid var(--border2);border-radius:var(--radius);
+  box-shadow:var(--shadow);z-index:9999;padding:8px;min-width:200px;
+  max-height:80vh;overflow-y:auto;
+}
+#themePicker .tp-section-label{
+  font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;
+  letter-spacing:.5px;margin-bottom:6px;padding:0 4px;
+}
+#themePicker .tp-grid{
+  display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:8px;
+}
+#themePicker .theme-btn{margin-right:0;padding:6px 10px;font-size:11px;}
 
 /* ── DETAIL PANE ── */
 .detail-pane{
@@ -1527,9 +1541,9 @@ input:checked+.slider:before{transform:translateX(16px);background:#000}
       <button class="hbtn" onclick="forceRefresh()" title="Refresh attendance data">↻ Refresh</button>
 
       <button class="hbtn" id="themeBtn" onclick="toggleThemePicker()" title="Change theme">◑</button>
-      <div id="themePicker" style="display:none;position:fixed;top:calc(var(--header-h) + 2px);right:10px;background:var(--card);border:1px solid var(--border2);border-radius:var(--radius);box-shadow:var(--shadow);z-index:9999;padding:8px;min-width:200px;max-height:80vh;overflow-y:auto">
-        <div style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;padding:0 4px">— Dark —</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:8px">
+      <div id="themePicker">
+        <div class="tp-section-label">— Dark —</div>
+        <div class="tp-grid">
           <button class="theme-btn" id="tp-darkThemeBtn" onclick="setTheme('dark');toggleThemePicker()">🌑 Dark</button>
           <button class="theme-btn" id="tp-dimmedThemeBtn" onclick="setTheme('dimmed');toggleThemePicker()">🌫 Dimmed</button>
           <button class="theme-btn" id="tp-draculaThemeBtn" onclick="setTheme('dracula');toggleThemePicker()">🧛 Dracula</button>
@@ -1545,8 +1559,8 @@ input:checked+.slider:before{transform:translateX(16px);background:#000}
           <button class="theme-btn" id="tp-matrixThemeBtn" onclick="setTheme('matrix');toggleThemePicker()">🖥️ Matrix</button>
           <button class="theme-btn" id="tp-cyberpunkThemeBtn" onclick="setTheme('cyberpunk');toggleThemePicker()">⚡ Cyberpunk</button>
         </div>
-        <div style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;padding:0 4px">— Light —</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px">
+        <div class="tp-section-label">— Light —</div>
+        <div class="tp-grid" style="margin-bottom:0">
           <button class="theme-btn" id="tp-lightThemeBtn" onclick="setTheme('light');toggleThemePicker()">☀️ Light</button>
           <button class="theme-btn" id="tp-creamThemeBtn" onclick="setTheme('cream');toggleThemePicker()">🍵 Cream</button>
           <button class="theme-btn" id="tp-greyThemeBtn" onclick="setTheme('grey');toggleThemePicker()">🌫️ Grey</button>
@@ -3966,7 +3980,7 @@ setInterval(()=>{
 // Sync AD app theme with the global page theme (set on <html data-theme>)
 (function(){
   const t = document.documentElement.getAttribute('data-theme') || localStorage.getItem('theme') || 'dark';
-  const isDark = !['light','cream','grey','rose','coffee','slate'].includes(t);
+  const isDark = !['light','cream','grey','rose','slate'].includes(t);
   document.getElementById('ad-app').setAttribute('data-theme', isDark ? 'dark' : 'light');
 })();
 function adToggleTheme(){
@@ -5274,7 +5288,7 @@ function _adBypassLogin() {
   const adApp = document.getElementById('ad-app');
   if (adApp) {
     const gt = document.documentElement.getAttribute('data-theme') || 'dark';
-    adApp.setAttribute('data-theme', ['light','cream','grey','rose','coffee','slate'].includes(gt) ? 'light' : 'dark');
+    adApp.setAttribute('data-theme', ['light','cream','grey','rose','slate'].includes(gt) ? 'light' : 'dark');
   }
   const sbAdmin = document.getElementById('sbAdmin');
   const sbRole  = document.getElementById('sbRole');

@@ -350,6 +350,9 @@ function valLayout(v){ lset('layout', v); document.body.setAttribute('data-layou
 function valFont(v){ lset('font', v); document.body.setAttribute('data-font', v); }
 function valGlass(v){ lset('glass', !!v); document.body.setAttribute('data-glass', !!v); }
 
+// Themes that map to a light background (used for syncing embedded AD app)
+const LIGHT_THEMES = ['light', 'cream', 'grey', 'rose', 'slate'];
+
 function setTheme(t){
   lset('theme',t);
   document.documentElement.setAttribute('data-theme',t);
@@ -362,7 +365,7 @@ function setTheme(t){
   if(pbtn) pbtn.classList.add('active');
   // Sync the embedded AD app's data-theme so it matches the global theme
   const adApp = document.getElementById('ad-app');
-  if(adApp) adApp.setAttribute('data-theme', ['light','cream','grey','rose','coffee','slate'].includes(t) ? 'light' : 'dark');
+  if(adApp) adApp.setAttribute('data-theme', LIGHT_THEMES.includes(t) ? 'light' : 'dark');
 }
 function toggleTheme(){setTheme(document.documentElement.getAttribute('data-theme')==='dark'?'light':'dark')}
 function toggleThemePicker(){
