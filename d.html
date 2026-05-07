@@ -205,6 +205,90 @@ document.head.appendChild(iconLink);
   --glow:0 0 20px rgba(255,158,124,.2);
   --scrollbar:#2d1722;--scrollbar-thumb:#6a3a54;
 }
+[data-theme="rose"] {
+  --bg:#fff0f3;--surface:#ffe4e8;--card:#fff;--card2:#fff0f3;
+  --border:#ffc8d0;--border2:#ffb0bb;
+  --accent:#e05570;--accent-dim:rgba(224,85,112,.1);
+  --green:#2d8c5c;--green-dim:rgba(45,140,92,.1);
+  --red:#c21030;--red-dim:rgba(194,16,48,.1);
+  --yellow:#9a6200;--yellow-dim:rgba(154,98,0,.08);
+  --orange:#c84a20;--purple:#7c3aed;
+  --text:#1a0a10;--text2:#6b3040;--text3:#b07080;
+  --shadow:0 4px 24px rgba(224,85,112,.12);
+  --shadow-sm:0 2px 8px rgba(224,85,112,.08);
+  --glow:0 0 20px rgba(224,85,112,.12);
+  --scrollbar:#ffc8d0;--scrollbar-thumb:#e05570;
+}
+[data-theme="monokai"] {
+  --bg:#272822;--surface:#3e3d32;--card:#272822;--card2:#3e3d32;
+  --border:#49483e;--border2:#75715e;
+  --accent:#a6e22e;--accent-dim:rgba(166,226,46,.12);
+  --green:#a6e22e;--green-dim:rgba(166,226,46,.12);
+  --red:#f92672;--red-dim:rgba(249,38,114,.12);
+  --yellow:#e6db74;--yellow-dim:rgba(230,219,116,.1);
+  --orange:#fd971f;--purple:#ae81ff;
+  --text:#f8f8f2;--text2:#cfcfc2;--text3:#75715e;
+  --shadow:0 8px 32px rgba(0,0,0,.5);
+  --shadow-sm:0 2px 12px rgba(0,0,0,.3);
+  --glow:0 0 20px rgba(166,226,46,.2);
+  --scrollbar:#3e3d32;--scrollbar-thumb:#75715e;
+}
+[data-theme="coffee"] {
+  --bg:#2c1810;--surface:#3d2418;--card:#2c1810;--card2:#4a2e1e;
+  --border:#6b3c25;--border2:#8a4e30;
+  --accent:#d4956a;--accent-dim:rgba(212,149,106,.15);
+  --green:#85b97e;--green-dim:rgba(133,185,126,.15);
+  --red:#e07070;--red-dim:rgba(224,112,112,.15);
+  --yellow:#e8c870;--yellow-dim:rgba(232,200,112,.15);
+  --orange:#d4956a;--purple:#b899d4;
+  --text:#f0e0d0;--text2:#c0a090;--text3:#806050;
+  --shadow:0 8px 32px rgba(0,0,0,.5);
+  --shadow-sm:0 2px 12px rgba(0,0,0,.3);
+  --glow:0 0 20px rgba(212,149,106,.2);
+  --scrollbar:#3d2418;--scrollbar-thumb:#6b3c25;
+}
+[data-theme="slate"] {
+  --bg:#f1f5f9;--surface:#e2e8f0;--card:#fff;--card2:#f1f5f9;
+  --border:#cbd5e1;--border2:#b0bec8;
+  --accent:#475569;--accent-dim:rgba(71,85,105,.1);
+  --green:#16803c;--green-dim:rgba(22,128,60,.1);
+  --red:#b91c1c;--red-dim:rgba(185,28,28,.1);
+  --yellow:#a16207;--yellow-dim:rgba(161,98,7,.08);
+  --orange:#b45309;--purple:#5b21b6;
+  --text:#0f172a;--text2:#475569;--text3:#94a3b8;
+  --shadow:0 4px 24px rgba(15,23,42,.1);
+  --shadow-sm:0 2px 8px rgba(15,23,42,.07);
+  --glow:0 0 20px rgba(71,85,105,.08);
+  --scrollbar:#cbd5e1;--scrollbar-thumb:#94a3b8;
+}
+[data-theme="cream"] {
+  --bg:#faf7f2;--surface:#f0ebe0;--card:#fff;--card2:#faf7f2;
+  --border:#e2d8c8;--border2:#c8baa8;
+  --accent:#7c5c38;--accent-dim:rgba(124,92,56,.1);
+  --green:#3a6b3a;--green-dim:rgba(58,107,58,.1);
+  --red:#9b3020;--red-dim:rgba(155,48,32,.1);
+  --yellow:#8a6500;--yellow-dim:rgba(138,101,0,.08);
+  --orange:#a04e20;--purple:#614090;
+  --text:#1e1208;--text2:#5a3e28;--text3:#9a7a5a;
+  --shadow:0 4px 24px rgba(30,18,8,.1);
+  --shadow-sm:0 2px 8px rgba(30,18,8,.07);
+  --glow:0 0 20px rgba(124,92,56,.1);
+  --scrollbar:#e2d8c8;--scrollbar-thumb:#a08060;
+}
+[data-theme="grey"] {
+  --bg:#f3f4f6;--surface:#e9ebee;--card:#fff;--card2:#f3f4f6;
+  --border:#d1d5db;--border2:#bcc2cc;
+  --accent:#374151;--accent-dim:rgba(55,65,81,.1);
+  --green:#1a6b3c;--green-dim:rgba(26,107,60,.1);
+  --red:#c0281c;--red-dim:rgba(192,40,28,.1);
+  --yellow:#8a6a00;--yellow-dim:rgba(138,106,0,.08);
+  --orange:#a04a18;--purple:#5b21b6;
+  --text:#111827;--text2:#4b5563;--text3:#9ca3af;
+  --shadow:0 4px 24px rgba(17,24,39,.1);
+  --shadow-sm:0 2px 8px rgba(17,24,39,.07);
+  --glow:0 0 20px rgba(55,65,81,.08);
+  --scrollbar:#d1d5db;--scrollbar-thumb:#9ca3af;
+}
 
 /* ── MODERN LAYOUTS & ANIMATIONS ── */
 body[data-layout="topbar"] .app-body { flex-direction: column; }
@@ -1442,7 +1526,34 @@ input:checked+.slider:before{transform:translateX(16px);background:#000}
       <span id="cacheTime" style="font-size:10px;color:var(--text3);font-family:var(--mono)"></span>
       <button class="hbtn" onclick="forceRefresh()" title="Refresh attendance data">↻ Refresh</button>
 
-      <button class="hbtn" id="themeBtn" onclick="toggleTheme()" title="Toggle theme">◑</button>
+      <button class="hbtn" id="themeBtn" onclick="toggleThemePicker()" title="Change theme">◑</button>
+      <div id="themePicker" style="display:none;position:fixed;top:calc(var(--header-h) + 2px);right:10px;background:var(--card);border:1px solid var(--border2);border-radius:var(--radius);box-shadow:var(--shadow);z-index:9999;padding:8px;min-width:200px;max-height:80vh;overflow-y:auto">
+        <div style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;padding:0 4px">— Dark —</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:8px">
+          <button class="theme-btn" id="tp-darkThemeBtn" onclick="setTheme('dark');toggleThemePicker()">🌑 Dark</button>
+          <button class="theme-btn" id="tp-dimmedThemeBtn" onclick="setTheme('dimmed');toggleThemePicker()">🌫 Dimmed</button>
+          <button class="theme-btn" id="tp-draculaThemeBtn" onclick="setTheme('dracula');toggleThemePicker()">🧛 Dracula</button>
+          <button class="theme-btn" id="tp-nordThemeBtn" onclick="setTheme('nord');toggleThemePicker()">❄️ Nord</button>
+          <button class="theme-btn" id="tp-sapphireThemeBtn" onclick="setTheme('sapphire');toggleThemePicker()">💎 Sapphire</button>
+          <button class="theme-btn" id="tp-oceanicThemeBtn" onclick="setTheme('oceanic');toggleThemePicker()">🐳 Oceanic</button>
+          <button class="theme-btn" id="tp-synthwaveThemeBtn" onclick="setTheme('synthwave');toggleThemePicker()">🌊 Synthwave</button>
+          <button class="theme-btn" id="tp-sunsetThemeBtn" onclick="setTheme('sunset');toggleThemePicker()">🌇 Sunset</button>
+          <button class="theme-btn" id="tp-coffeeThemeBtn" onclick="setTheme('coffee');toggleThemePicker()">☕ Coffee</button>
+          <button class="theme-btn" id="tp-solarizedThemeBtn" onclick="setTheme('solarized');toggleThemePicker()">🌞 Solarized</button>
+          <button class="theme-btn" id="tp-emeraldThemeBtn" onclick="setTheme('emerald');toggleThemePicker()">🌿 Emerald</button>
+          <button class="theme-btn" id="tp-monokaiThemeBtn" onclick="setTheme('monokai');toggleThemePicker()">🎨 Monokai</button>
+          <button class="theme-btn" id="tp-matrixThemeBtn" onclick="setTheme('matrix');toggleThemePicker()">🖥️ Matrix</button>
+          <button class="theme-btn" id="tp-cyberpunkThemeBtn" onclick="setTheme('cyberpunk');toggleThemePicker()">⚡ Cyberpunk</button>
+        </div>
+        <div style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;padding:0 4px">— Light —</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px">
+          <button class="theme-btn" id="tp-lightThemeBtn" onclick="setTheme('light');toggleThemePicker()">☀️ Light</button>
+          <button class="theme-btn" id="tp-creamThemeBtn" onclick="setTheme('cream');toggleThemePicker()">🍵 Cream</button>
+          <button class="theme-btn" id="tp-greyThemeBtn" onclick="setTheme('grey');toggleThemePicker()">🌫️ Grey</button>
+          <button class="theme-btn" id="tp-slateThemeBtn" onclick="setTheme('slate');toggleThemePicker()">📋 Slate</button>
+          <button class="theme-btn" id="tp-roseThemeBtn" onclick="setTheme('rose');toggleThemePicker()">🌸 Rose</button>
+        </div>
+      </div>
       <div class="user-pill" onclick="toggleUserMenu()">
         <div class="user-avatar" id="userAvatarHdr">?</div>
         <div>
@@ -1560,26 +1671,8 @@ input:checked+.slider:before{transform:translateX(16px);background:#000}
       </div>
 
       <div class="sb-section">AD Management</div>
-      <div class="sb-item" onclick="showADSection('users')" id="sb-ad-users" data-adsec="users">
-        <span class="sb-icon">👥</span> AD Users
-      </div>
-      <div class="sb-item" onclick="showADSection('dash')" id="sb-ad-dash" data-adsec="dash">
-        <span class="sb-icon">📊</span> AD Dashboard
-      </div>
-      <div class="sb-item" onclick="showADSection('audit')" id="sb-ad-audit" data-adsec="audit">
-        <span class="sb-icon">📋</span> AD Audit Log
-      </div>
-      <div class="sb-item" onclick="showADSection('drive')" id="sb-ad-drive" data-adsec="drive">
-        <span class="sb-icon">🖴</span> AD Drive
-      </div>
-      <div class="sb-item" onclick="showADSection('tokens')" id="sb-ad-tokens" data-adsec="tokens">
-        <span class="sb-icon">🔢</span> AD Tokens
-      </div>
-      <div class="sb-item" onclick="showADSection('tickets')" id="sb-ad-tickets" data-adsec="tickets">
-        <span class="sb-icon">🎫</span> AD Tickets
-      </div>
-      <div class="sb-item" onclick="showADSection('tools')" id="sb-ad-tools" data-adsec="tools">
-        <span class="sb-icon">🧰</span> AD Tools
+      <div class="sb-item" onclick="showPage('ad-main')" id="sb-ad-main">
+        <span class="sb-icon">🏢</span> AD Management
       </div>
 
       <div class="sb-section" style="color:#ff3333">🚨 Emergency</div>
@@ -2164,11 +2257,29 @@ input:checked+.slider:before{transform:translateX(16px);background:#000}
               <h3>🖥 Appearance</h3>
               <div class="form-group">
                 <label>Theme</label>
+                <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">
+                  <button class="theme-btn" id="darkThemeBtn" onclick="setTheme('dark')">🌑 Dark</button>
                   <button class="theme-btn" id="dimmedThemeBtn" onclick="setTheme('dimmed')">🌫 Dimmed</button>
-                  <button class="theme-btn" id="synthwaveThemeBtn" onclick="setTheme('synthwave')">🌊 Synthwave</button>
+                  <button class="theme-btn" id="lightThemeBtn" onclick="setTheme('light')">☀️ Light</button>
+                  <button class="theme-btn" id="creamThemeBtn" onclick="setTheme('cream')">🍵 Cream</button>
+                  <button class="theme-btn" id="greyThemeBtn" onclick="setTheme('grey')">🌫️ Grey</button>
+                  <button class="theme-btn" id="slateThemeBtn" onclick="setTheme('slate')">📋 Slate</button>
+                  <button class="theme-btn" id="roseThemeBtn" onclick="setTheme('rose')">🌸 Rose</button>
+                  <button class="theme-btn" id="sapphireThemeBtn" onclick="setTheme('sapphire')">💎 Sapphire</button>
                   <button class="theme-btn" id="oceanicThemeBtn" onclick="setTheme('oceanic')">🐳 Oceanic</button>
+                  <button class="theme-btn" id="nordThemeBtn" onclick="setTheme('nord')">❄️ Nord</button>
+                  <button class="theme-btn" id="draculaThemeBtn" onclick="setTheme('dracula')">🧛 Dracula</button>
+                  <button class="theme-btn" id="monokaiThemeBtn" onclick="setTheme('monokai')">🎨 Monokai</button>
+                  <button class="theme-btn" id="synthwaveThemeBtn" onclick="setTheme('synthwave')">🌊 Synthwave</button>
                   <button class="theme-btn" id="sunsetThemeBtn" onclick="setTheme('sunset')">🌇 Sunset</button>
+                  <button class="theme-btn" id="coffeeThemeBtn" onclick="setTheme('coffee')">☕ Coffee</button>
+                  <button class="theme-btn" id="emeraldThemeBtn" onclick="setTheme('emerald')">🌿 Emerald</button>
+                  <button class="theme-btn" id="solarizedThemeBtn" onclick="setTheme('solarized')">🌞 Solarized</button>
+                  <button class="theme-btn" id="matrixThemeBtn" onclick="setTheme('matrix')">🖥️ Matrix</button>
+                  <button class="theme-btn" id="cyberpunkThemeBtn" onclick="setTheme('cyberpunk')">⚡ Cyberpunk</button>
                 </div>
+              </div>
+              <div class="form-group">
                 <label>Layout Structure</label>
                 <select class="form-control" id="sLayoutStyle" onchange="valLayout(this.value)" style="margin-bottom:8px">
                   <option value="default">Standard Navigation (Sidebar)</option>
@@ -3852,17 +3963,15 @@ setInterval(()=>{
 },1000);
 
 // ── THEME ──
+// Sync AD app theme with the global page theme (set on <html data-theme>)
 (function(){
-  const t=localStorage.getItem("ad-theme")||"light";
-  document.getElementById('ad-app').setAttribute("data-theme",t);
-  document.getElementById("ad-themeBtn").textContent=t==="dark"?"LIGHT":"DARK";
+  const t = document.documentElement.getAttribute('data-theme') || localStorage.getItem('theme') || 'dark';
+  const isDark = !['light','cream','grey','rose','coffee','slate'].includes(t);
+  document.getElementById('ad-app').setAttribute('data-theme', isDark ? 'dark' : 'light');
 })();
 function adToggleTheme(){
-  const c=document.getElementById('ad-app').getAttribute("data-theme");
-  const n=c==="dark"?"light":"dark";
-  document.getElementById('ad-app').setAttribute("data-theme",n);
-  localStorage.setItem("ad-theme",n);
-  document.getElementById("ad-themeBtn").textContent=n==="dark"?"LIGHT":"DARK";
+  // Delegate to global theme toggle so both stay in sync
+  if(typeof toggleTheme === 'function') toggleTheme();
 }
 
 // ── SIDEBAR ──
@@ -5161,6 +5270,12 @@ function _adBypassLogin() {
   adMyPerms = DEFAULT_ROLE_PERMS[role] || [];
   const ls = document.getElementById('ad-loginScreen');
   if (ls) ls.style.display = 'none';
+  // Sync AD app theme with the current global theme
+  const adApp = document.getElementById('ad-app');
+  if (adApp) {
+    const gt = document.documentElement.getAttribute('data-theme') || 'dark';
+    adApp.setAttribute('data-theme', ['light','cream','grey','rose','coffee','slate'].includes(gt) ? 'light' : 'dark');
+  }
   const sbAdmin = document.getElementById('sbAdmin');
   const sbRole  = document.getElementById('sbRole');
   const termP   = document.getElementById('termP');
