@@ -83,7 +83,19 @@ function _voipConnect() {
 
   _voipSetStatus('◌ Connecting…', 'var(--yellow)');
 
-  _sio = io({ path: '/socket.io', transports: ['polling', 'websocket'] });
+  // Use the same server URL as all other API calls (CFG.zkUrl already handles
+  // the localhost→page-origin remapping for Cloudflare/remote access).
+  // WebSocket-first: more reliable through Cloudflare tunnels than long-polling.
+  // timeout: give up after 15 s so status falls to "● Error" instead of hanging.
+  var sioUrl = (window.CFG && CFG.zkUrl) ? CFG.zkUrl : window.location.origin;
+  _sio = io(sioUrl, {
+    path: '/socket.io',
+    transports: ['websocket', 'polling'],
+    timeout: 15000,
+    reconnectionAttempts: 5,
+    reconnectionDelay: 2000,
+    reconnectionDelayMax: 10000
+  });
 
   _sio.on('connect', function() {
     _voipSetStatus('◌ Registering…', 'var(--yellow)');
