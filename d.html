@@ -3699,7 +3699,7 @@ input:checked+.slider:before{transform:translateX(16px);background:#000}
 <script>
 function _loadSocketIOFallback() {
   var s = document.createElement('script');
-  s.src = 'https://cdn.socket.io/4.7.5/socket.io.min.js';
+  s.src = 'https://cdn.socket.io/4.8.1/socket.io.min.js';
   s.onload = function() {
     // Allow voip.js DOMContentLoaded handler to run before retrying voipInit
     if (typeof voipInit === 'function') setTimeout(voipInit, 500);
@@ -3707,7 +3707,7 @@ function _loadSocketIOFallback() {
   document.head.appendChild(s);
 }
 </script>
-<script src="/socket.io/socket.io.js" onerror="_loadSocketIOFallback()"></script>
+<script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
 <script src="js/voip.js"></script>
 <script>
 // ── ZK ATTENDANCE: section navigation via embedded iframe ─────────────────

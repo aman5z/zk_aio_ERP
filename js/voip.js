@@ -366,9 +366,15 @@ function _newRTC() {
     if (!_remoteAudio) {
       _remoteAudio = new Audio();
       _remoteAudio.autoplay = true;
+      _remoteAudio.setAttribute('playsinline', '');
+      _remoteAudio.setAttribute('webkit-playsinline', '');
       document.body.appendChild(_remoteAudio);
+      if (typeof _remoteAudio.setSinkId === 'function') {
+        _remoteAudio.setSinkId('').catch(function(){});
+      }
     }
     _remoteAudio.srcObject = e.streams[0];
+    _remoteAudio.play().catch(function(){});
   };
 
   pc.onconnectionstatechange = function() {
@@ -516,7 +522,7 @@ function _voipSetActiveBody(html) {
 var _voipDirCache = [];
 
 function voipLoadContacts() {
-  var emps = (window.STATE && Array.isArray(STATE.empList)) ? STATE.empList : [];
+  var emps = (STATE && Array.isArray(STATE.empList)) ? STATE.empList : [];
   if (emps.length) {
     // Employees already loaded — build contacts immediately
     _voipBuildContacts();
@@ -544,7 +550,7 @@ function voipLoadContacts() {
 function _voipBuildContacts() {
   var me = _voipMe();
   // Prefer the main employee list; fall back to the VoIP-specific directory cache
-  var emps = (window.STATE && Array.isArray(STATE.empList) && STATE.empList.length)
+  var emps = (STATE && Array.isArray(STATE.empList) && STATE.empList.length)
     ? STATE.empList
     : _voipDirCache;
   var onlineMap = {};
@@ -780,11 +786,11 @@ function _voipSetStatus(text, color) {
 // ============================================================
 
 function _voipMe() {
-  return window.STATE && STATE.user ? (STATE.user.username || STATE.user.badge || '') : '';
+  return STATE && STATE.user ? (STATE.user.username || STATE.user.badge || '') : '';
 }
 
 function _voipMeInfo() {
-  if (!window.STATE || !STATE.user) return { name: '', badge: '', dept: '' };
+  if (!STATE || !STATE.user) return { name: '', badge: '', dept: '' };
   var u = STATE.user;
   return {
     name  : u.name  || u.display_name || u.username || '',
@@ -794,7 +800,7 @@ function _voipMeInfo() {
 }
 
 function _findEmpByBadge(badge) {
-  if (!window.STATE || !Array.isArray(STATE.empList)) return null;
+  if (!STATE || !Array.isArray(STATE.empList)) return null;
   return STATE.empList.find(function(e) { return (e.code || e.badge) === badge; }) || null;
 }
 

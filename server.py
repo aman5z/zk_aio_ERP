@@ -5874,7 +5874,7 @@ if SOCKETIO_AVAILABLE and socketio:
 
     @socketio.on('disconnect')
     def _voip_on_disconnect():
-        from flask_socketio import request as sio_req
+        from flask import request as sio_req
         sid = sio_req.sid
         with _voip_online_lock:
             to_remove = [u for u, s in _voip_online.items() if s == sid]
@@ -5887,7 +5887,7 @@ if SOCKETIO_AVAILABLE and socketio:
     @socketio.on('voip_register')
     def _voip_register(data):
         """Client registers itself: {username, name, badge, dept}"""
-        from flask_socketio import request as sio_req
+        from flask import request as sio_req
         username = data.get('username', '').strip()
         if not username:
             return
