@@ -3828,6 +3828,7 @@ const DEFAULT_ROLE_PERMS = {
 };
 
 let adTok=null, adMyEmail="", adMyRole="", adMyPerms=[];
+const _AD_ERP_SESSION_TOKEN = '__erp_session__';
 let adAllUsers=[], adAllRoles=[], adAllAudit=[], adAllCounters=[], adAllTickets=[];
 let adCurView="all", adSelEmail=null, adSortCol="email", adSortAsc=true;
 let adIsEdit=false, adSelCounterId=null, adSelTicketId=null;
@@ -3978,7 +3979,7 @@ function adDoLogout(){
   document.getElementById("lPass").value=""; document.getElementById("lErr").textContent="";
   ["tab-users","tab-dash","tab-audit","tab-drive","tab-tokens","tab-tickets"].forEach(id=>document.getElementById(id).classList.remove("hide"));
   // Re-apply bypass so the login screen does not reappear
-  if(typeof adAutoLogin==='function') adAutoLogin();
+  adAutoLogin();
 }
 
 function showAbout(){
@@ -5153,8 +5154,8 @@ function _adBypassLogin() {
   if (adTok) return;
   const u = (typeof STATE !== 'undefined' && STATE && STATE.user) ? STATE.user : null;
   const dispName = u ? (u.username || u.name || 'admin') : 'admin';
-  const role = (u && (u.role === 'admin' || u.role === 'Admin')) ? 'Admin' : 'User';
-  adTok = '__erp_session__';
+  const role = (u && (u.role || '').toLowerCase() === 'admin') ? 'Admin' : 'User';
+  adTok = _AD_ERP_SESSION_TOKEN;
   adMyEmail = dispName;
   adMyRole = role;
   adMyPerms = DEFAULT_ROLE_PERMS[role] || [];
