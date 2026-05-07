@@ -151,8 +151,8 @@ body{
   100%{ transform:scale(1);   filter:brightness(1);   }
 }
 
-/* ── OVERLAY ── */
-#unmuteOverlay{
+/* ── OVERLAYS ── */
+.overlay-base{
   position:fixed; inset:0;
   background:rgba(0,0,0,0.88);
   display:flex;
@@ -160,9 +160,9 @@ body{
   align-items:center;
   justify-content:center;
   z-index:999;
-  cursor:pointer;
   gap:12px;
 }
+#unmuteOverlay{ cursor:pointer; }
 .overlay-btn{
   background:#38bdf8;
   color:#000;
@@ -173,6 +173,46 @@ body{
   letter-spacing:1px;
 }
 .overlay-sub{ font-size:14px; color:rgba(255,255,255,0.5); }
+
+/* ── SETUP OVERLAY ── */
+#setupOverlay{ z-index:1000; }
+.setup-box{
+  background:rgba(15,23,42,0.97);
+  border:1px solid rgba(99,102,241,0.4);
+  border-radius:16px;
+  padding:32px 28px;
+  width:90%;
+  max-width:480px;
+  text-align:center;
+}
+.setup-box h2{ font-size:22px; margin-bottom:8px; color:#38bdf8; }
+.setup-box p{ font-size:13px; color:rgba(255,255,255,0.55); margin-bottom:20px; }
+.setup-input{
+  width:100%;
+  padding:10px 14px;
+  border-radius:8px;
+  border:1px solid rgba(99,102,241,0.5);
+  background:rgba(255,255,255,0.06);
+  color:#fff;
+  font-size:13px;
+  margin-bottom:12px;
+  box-sizing:border-box;
+}
+.setup-input::placeholder{ color:rgba(255,255,255,0.3); }
+.setup-input:focus{ outline:none; border-color:#38bdf8; }
+.setup-save-btn{
+  background:#6366f1;
+  color:#fff;
+  font-size:15px;
+  font-weight:bold;
+  padding:11px 32px;
+  border-radius:9px;
+  border:none;
+  cursor:pointer;
+  width:100%;
+}
+.setup-save-btn:hover{ background:#4f46e5; }
+.setup-err{ color:#f87171; font-size:12px; margin-top:6px; min-height:18px; }
 
 /* ── MOBILE ── */
 @media(max-width:600px){
@@ -188,13 +228,26 @@ body{
 </head>
 <body>
 
-<div id="unmuteOverlay" onclick="unlock()">
+<div id="setupOverlay" class="overlay-base" style="display:none">
+  <div class="setup-box">
+    <h2>⚙️ Token Display Setup</h2>
+    <p>Enter your Google Apps Script deployment URL.<br>This is the same URL used in the ZKTeco dashboard settings.</p>
+    <input id="gasUrlInput" class="setup-input" type="url"
+           placeholder="https://script.google.com/macros/s/.../exec"
+           oninput="document.getElementById('setupErr').textContent=''">
+    <button class="setup-save-btn" onclick="saveGasUrl()">Save &amp; Start</button>
+    <div id="setupErr" class="setup-err"></div>
+  </div>
+</div>
+
+<div id="unmuteOverlay" onclick="unlock()" class="overlay-base">
   <div class="overlay-sub">Tap anywhere to start token display</div>
 </div>
 
 <div class="topbar">
   <div class="topbar-left">
-    <a class="tb-btn" href="https://aman5z.github.io/Token_System/TokenCounterSystem.html" target="_blank">🔐 Login</a>
+    <a class="tb-btn" href="d.html" target="_blank" rel="noopener">🔐 Dashboard</a>
+    <button class="tb-btn" onclick="openSetup()" title="Change GAS URL">⚙️</button>
   </div>
   <div class="topbar-center">
     <div id="clock"></div>
@@ -208,12 +261,39 @@ body{
 </div>
 
 <script>
-const API = "https://script.google.com/macros/s/AKfycbyxhqVi3BPh_ksWRJ5n9TWLGBK8HbEhxqqwqV4Bfft7VJJlGxRWI9PPS4Zhw_aKN1TOQQ/exec";
+// ── GAS API URL ──
+// Read from localStorage (same key as d.html dashboard: erp_gasUrl)
+// Falls back to empty; user is prompted to configure if blank.
+const LS_KEY = 'erp_gasUrl';
+let API = localStorage.getItem(LS_KEY) || '';
 
 let lastUpdated  = {};
 let initialized  = false;
 let audioUnlocked = false;
 let cbCount = 0;
+
+/* ── SETUP OVERLAY ── */
+function openSetup(){
+  const overlay = document.getElementById('setupOverlay');
+  document.getElementById('gasUrlInput').value = API || '';
+  document.getElementById('setupErr').textContent = '';
+  overlay.style.display = 'flex';
+}
+function saveGasUrl(){
+  const val = document.getElementById('gasUrlInput').value.trim();
+  let parsed;
+  try { parsed = new URL(val); } catch(e) { parsed = null; }
+  if(!parsed || (parsed.protocol !== 'https:' && parsed.protocol !== 'http:')){ document.getElementById('setupErr').textContent = 'Enter a valid https:// URL'; return; }
+  API = val;
+  localStorage.setItem(LS_KEY, API);
+  document.getElementById('setupOverlay').style.display = 'none';
+  if(!audioUnlocked){
+    // Show the tap-to-start overlay so user unlocks audio
+    document.getElementById('unmuteOverlay').style.display = 'flex';
+  } else {
+    load();
+  }
+}
 
 /* ── CLOCK ── */
 function updateClock(){
@@ -275,6 +355,11 @@ function toggleTheme(){
 
 /* ── JSONP ── */
 function jsonp(params, callback){
+  if(!API) return;
+  // Validate API URL before using as script src to prevent DOM XSS
+  let apiUrl;
+  try { apiUrl = new URL(API); } catch(e) { console.warn('Token display: invalid GAS URL'); return; }
+  if(apiUrl.protocol !== 'https:' && apiUrl.protocol !== 'http:') { console.warn('Token display: GAS URL must be http(s)'); return; }
   const cbName = "_cb" + (++cbCount);
   window[cbName] = function(data){
     delete window[cbName];
@@ -286,12 +371,32 @@ function jsonp(params, callback){
   const qs = Object.entries(params).map(([k,v])=>encodeURIComponent(k)+"="+encodeURIComponent(v)).join("&");
   const s = document.createElement("script");
   s.id = cbName;
-  s.src = API + "?" + qs;
+  // Use validated origin+pathname to prevent injection via stored URL
+  s.src = apiUrl.origin + apiUrl.pathname + "?" + qs;
+  // Timeout: if the script doesn't call back within 10s, clean up
+  const timeout = setTimeout(function(){
+    if(window[cbName]){ delete window[cbName]; }
+    const el = document.getElementById(cbName);
+    if(el) document.head.removeChild(el);
+  }, 10000);
+  s.onload = function(){ clearTimeout(timeout); };
+  s.onerror = function(){
+    clearTimeout(timeout);
+    delete window[cbName];
+    const el = document.getElementById(cbName);
+    if(el) document.head.removeChild(el);
+    console.warn('Token display: JSONP request failed. Check your GAS URL.');
+  };
   document.head.appendChild(s);
 }
 
 /* ── UNLOCK + FULLSCREEN ── */
 function unlock(){
+  if(!API){
+    document.getElementById('unmuteOverlay').style.display = 'none';
+    openSetup();
+    return;
+  }
   document.getElementById("unmuteOverlay").style.display = "none";
 
   // Fullscreen
@@ -349,6 +454,7 @@ function triggerFlash(el){
 /* ── LOAD ── */
 function load(){
   if(!audioUnlocked) return;
+  if(!API){ openSetup(); return; }
   jsonp({action:"getCountersPublic"}, function(data){
     if(!Array.isArray(data)) return;
     const grid = document.getElementById("grid");
@@ -383,6 +489,7 @@ function load(){
       lastUpdated[id] = updated;
     });
 
+    // Remove cards for counters that no longer exist
     Array.from(grid.children).forEach(function(card){
       if(!ids.includes(card.id.replace("card-",""))) grid.removeChild(card);
     });
@@ -392,6 +499,12 @@ function load(){
 }
 
 setInterval(function(){ if(audioUnlocked) load(); }, 3000);
+
+// If no API URL is saved, show setup overlay immediately (DOM is already ready here)
+if(!API){
+  document.getElementById('unmuteOverlay').style.display = 'none';
+  document.getElementById('setupOverlay').style.display = 'flex';
+}
 </script>
 </body>
 </html>

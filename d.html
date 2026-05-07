@@ -804,6 +804,7 @@ select.form-control option{background:var(--card)}
 .counter-value{font-size:52px;font-family:var(--mono);font-weight:700;color:var(--accent);line-height:1}
 .counter-prefix{font-size:20px;color:var(--text2);font-family:var(--mono)}
 .counter-actions{display:flex;justify-content:center;gap:8px;margin-top:14px;flex-wrap:wrap}
+.counter-mgmt{display:flex;justify-content:center;gap:6px;margin-top:8px;flex-wrap:wrap;padding-top:8px;border-top:1px solid var(--border)}
 
 /* ── DRIVE ── */
 .drive-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px}
@@ -1893,6 +1894,7 @@ input:checked+.slider:before{transform:translateX(16px);background:#000}
         <div class="page-hdr">
           <div class="page-hdr-left"><h2>Token Queue</h2><p class="text-mono">Service counter management</p></div>
           <div class="page-actions">
+            <a class="btn btn-secondary btn-sm" href="token.html" target="_blank" rel="noopener">📺 Live Display</a>
             <button class="btn btn-primary btn-sm" id="addCounterBtn" onclick="openAddCounter()" data-perm="tokens.manage">➕ Add Counter</button>
             <button class="btn btn-secondary btn-sm" onclick="loadCounters()">↻ Refresh</button>
           </div>
@@ -3681,6 +3683,18 @@ input:checked+.slider:before{transform:translateX(16px);background:#000}
       <div class="err-msg" id="cErr"></div>
     </div>
     <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('addCounterModal')">Cancel</button><button class="btn btn-primary" onclick="submitAddCounter()">Add Counter</button></div>
+  </div>
+</div>
+
+<!-- Rename Counter -->
+<div class="modal-overlay" id="mainRenameCounterModal">
+  <div class="modal sm">
+    <div class="modal-header"><h3>✏️ Rename Counter</h3><button class="modal-close" onclick="closeModal('mainRenameCounterModal')">✕</button></div>
+    <div class="modal-body">
+      <div class="form-group"><label>New Name *</label><input class="form-control" id="renameCounterInput" placeholder="e.g. Registration, VIP..."></div>
+      <div class="err-msg" id="rnCounterErr"></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('mainRenameCounterModal')">Cancel</button><button class="btn btn-primary" onclick="submitRenameCounter()">Rename</button></div>
   </div>
 </div>
 

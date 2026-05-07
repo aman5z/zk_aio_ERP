@@ -41,7 +41,28 @@ function doPost(e) {
   if (a==="terminal")          return terminalCommand(e);
   return j("Invalid action");
 }
-function doGet() { return j("System Online — aman5z.in"); }
+function doGet(e) {
+  const a = e && e.parameter && e.parameter.action;
+  if (a === "getCountersPublic") return getCountersPublic(e);
+  return j("System Online — aman5z.in");
+}
+
+/* ── PUBLIC COUNTER READ (no auth, for live display / token.html) ── */
+function getCountersPublic(e) {
+  ensureCountersSheet();
+  const sheet = ss().getSheetByName("Counters");
+  const data  = sheet.getDataRange().getValues();
+  const rawCb = e && e.parameter && e.parameter.callback;
+  // Validate callback name: alphanumeric + underscore only (JSONP safety)
+  const cb = rawCb && /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(rawCb) ? rawCb : null;
+  if (cb) {
+    // JSONP response — wrap data in validated callback function call
+    return ContentService
+      .createTextOutput(cb + "(" + JSON.stringify(data) + ")")
+      .setMimeType(ContentService.MimeType.JAVASCRIPT);
+  }
+  return ContentService.createTextOutput(JSON.stringify(data)).setMimeType(ContentService.MimeType.JSON);
+}
 
 /* ── LOGIN ──
    Users cols: 0=Email 1=Hash 2=Role 3=Phone 4=DisplayName 5=Dept 6=Enabled 7=Modified 8=LastLogon 9=Permissions */
