@@ -33,7 +33,10 @@ A full attendance management solution for ZKTeco biometric devices. It includes 
 ### Web Dashboard
 - Secure login with admin and employee roles
 - Role-Based Access Control (RBAC) — configurable per-user permissions
-- Light / Dark / Dracula / Nord UI themes (stored server-side per user)
+- 13 UI themes: Dark, Light, Dracula, Nord, Solarized, Matrix, Cyberpunk, Sapphire, Emerald, Dimmed, Synthwave, Oceanic, Sunset (stored per browser in localStorage)
+- Customizable layout structure: Sidebar (default), Horizontal Topbar, or Compact Density
+- Customizable typography: Inter, Outfit, IBM Plex Mono, or System Default
+- Optional Glassmorphism UI overlay
 - User avatar upload and password self-service change
 - Server-Sent Events (SSE) for live page refresh without polling
 - Session management — list, revoke individual or all sessions for a user
@@ -392,7 +395,7 @@ A comprehensive suite of client-side utilities built into the app — no server 
 |-------|---------|
 | **Backend** | Python 3.8+, Flask, SQLite (WAL mode), `pyzk` for device communication |
 | **Real-time** | Flask-SocketIO (WebRTC VoIP signaling), Server-Sent Events (SSE) for live refresh and SOS alerts |
-| **Frontend** | HTML5, CSS3 (Native CSS Variables + 5 built-in themes), Vanilla JavaScript (ES6+), 22 modular JS files |
+| **Frontend** | HTML5, CSS3 (Native CSS Variables + 13 built-in themes), Vanilla JavaScript (ES6+), 22 modular JS files |
 | **Offline Storage** | `localStorage` for settings; `IndexedDB` + Service Workers for offline punch caching |
 | **External Libraries (CDN)** | `JsBarcode`, `qrcode.js`, `pdf-lib`, `SheetJS / xlsx`, `Chart.js`, `Socket.IO` |
 | **Notifications** | Telegram Bot API, Gmail SMTP (SSL) |
