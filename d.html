@@ -289,6 +289,20 @@ document.head.appendChild(iconLink);
   --glow:0 0 20px rgba(55,65,81,.08);
   --scrollbar:#d1d5db;--scrollbar-thumb:#9ca3af;
 }
+[data-theme="alert"] {
+  --bg:#0a0a0a;--surface:#111111;--card:#0d0d0d;--card2:#151515;
+  --border:#222222;--border2:#2a2a2a;
+  --accent:#ff1a1a;--accent-dim:rgba(255,26,26,.12);
+  --green:#00cc66;--green-dim:rgba(0,204,102,.12);
+  --red:#ff1a1a;--red-dim:rgba(255,26,26,.12);
+  --yellow:#ff8c00;--yellow-dim:rgba(255,140,0,.1);
+  --orange:#ff8c00;--purple:#cc44ff;
+  --text:#e8e8e8;--text2:#999999;--text3:#666666;
+  --shadow:0 8px 32px rgba(0,0,0,.7);
+  --shadow-sm:0 2px 12px rgba(0,0,0,.5);
+  --glow:0 0 20px rgba(255,26,26,.2);
+  --scrollbar:#1a1a1a;--scrollbar-thumb:#333333;
+}
 
 /* ── MODERN LAYOUTS & ANIMATIONS ── */
 body[data-layout="topbar"] .app-body { flex-direction: column; }
@@ -1559,6 +1573,7 @@ input:checked+.slider:before{transform:translateX(16px);background:#000}
           <button class="theme-btn" id="tp-monokaiThemeBtn" onclick="setTheme('monokai');toggleThemePicker()">🎨 Monokai</button>
           <button class="theme-btn" id="tp-matrixThemeBtn" onclick="setTheme('matrix');toggleThemePicker()">🖥️ Matrix</button>
           <button class="theme-btn" id="tp-cyberpunkThemeBtn" onclick="setTheme('cyberpunk');toggleThemePicker()">⚡ Cyberpunk</button>
+          <button class="theme-btn" id="tp-alertThemeBtn" onclick="setTheme('alert');toggleThemePicker()">🚨 Alert</button>
         </div>
         <div class="tp-section-label">— Light —</div>
         <div class="tp-grid" style="margin-bottom:0">
