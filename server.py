@@ -1162,12 +1162,16 @@ def _bot_get_punch_feed() -> list:
 
 
 def _bot_get_week_summary() -> list:
-    """Return {date, weekday, present, absent, total} for each day Mon–today this week."""
+    """Return {date, weekday, present, absent, total} for each day Sun–today this week."""
     today      = date.today()
-    monday     = today - timedelta(days=today.weekday())
+    # Week starts on Sunday for this Sun–Thu organisation.
+    # (today.weekday()+1)%7 gives days elapsed since the most recent Sunday:
+    #   Sunday=0, Monday=1, ..., Saturday=6
+    days_since_sunday = (today.weekday() + 1) % 7
+    week_start = today - timedelta(days=days_since_sunday)
     total_emps = len(get_employees(active_only=True))
     result     = []
-    d = monday
+    d = week_start
     while d <= today:
         punched = get_punches_for_day(d)
         present = len(punched)
@@ -1189,7 +1193,7 @@ def _bot_get_month_summary() -> dict:
     working_days = []
     d = month_start
     while d <= today:
-        if d.weekday() < 5:
+        if _is_working_day(d, '', ''):
             working_days.append(d)
         d += timedelta(days=1)
     if not working_days:
@@ -1220,27 +1224,33 @@ def _bot_get_top_absent() -> list:
     """Return up to 10 employees with the most absent working days this month."""
     today       = date.today()
     month_start = today.replace(day=1)
-    working_days = []
+    # Collect all calendar days from month start to today (punch lookup is per day)
+    all_days = []
     d = month_start
     while d <= today:
-        if d.weekday() < 5:
-            working_days.append(d)
+        all_days.append(d)
         d += timedelta(days=1)
-    if not working_days:
+    if not all_days:
         return []
-    emps        = get_employees(active_only=True)
-    daily_punched = {wd: get_punches_for_day(wd) for wd in working_days}
+    emps          = get_employees(active_only=True)
+    daily_punched = {day: get_punches_for_day(day) for day in all_days}
     result = []
     for emp in emps:
-        badge       = emp["badge"]
-        absent_days = sum(1 for wd in working_days if badge not in daily_punched[wd])
+        badge = emp["badge"]
+        dept  = emp.get("dept", "")
+        # Use per-employee working days so departments with different schedules
+        # (e.g. TEACHING works Mon–Thu, not Sun) are counted correctly.
+        emp_working_days = [day for day in all_days if _is_working_day(day, badge, dept)]
+        if not emp_working_days:
+            continue
+        absent_days = sum(1 for wd in emp_working_days if badge not in daily_punched[wd])
         if absent_days > 0:
             result.append({
                 "badge":        badge,
                 "name":         emp["name"],
-                "dept":         emp.get("dept", ""),
+                "dept":         dept,
                 "absent_days":  absent_days,
-                "working_days": len(working_days),
+                "working_days": len(emp_working_days),
             })
     result.sort(key=lambda x: -x["absent_days"])
     return result[:10]
@@ -2497,6 +2507,16 @@ def _dept_sort(dept):
     try:    return DEPT_ORDER.index(dept.upper())
     except: return len(DEPT_ORDER)
 
+def _norm_badge(b: str) -> str:
+    """Canonical badge form: strip leading zeros from purely-numeric badges.
+    Used to reconcile device UIDs with CSV badge numbers that may differ only
+    in leading zeros (e.g. device stores '5', CSV has '005').
+    """
+    b = str(b).strip()
+    if b.isdigit():
+        return str(int(b))
+    return b
+
 # ==============================================================================
 #  DEVICE PULL
 # ==============================================================================
@@ -2700,6 +2720,9 @@ def _refresh_cache():
     # _uid_to_badge_cache maps uid_str -> badge_str.
     # Also keep raw UIDs as fallback (some devices store badge number as UID).
     _emp_badges_set = _emp_cache_for_db()
+    # Build a normalised version of the known badge set so we can match across
+    # leading-zero differences (e.g. device stores "5", CSV has "005").
+    _emp_badges_norm = {_norm_badge(b) for b in _emp_badges_set}
     present_badges_resolved = set()
     for uid in present_badges:
         # ZKTeco devices normally enroll users with their badge/employee number as
@@ -2709,7 +2732,7 @@ def _refresh_cache():
         # so an MDB-derived UID→badge mapping from one device can be wrong for
         # another device.  Only fall back to the MDB map when the raw UID is not
         # itself a recognisable employee badge.
-        if uid in _emp_badges_set:
+        if uid in _emp_badges_set or _norm_badge(uid) in _emp_badges_norm:
             present_badges_resolved.add(uid)
         else:
             mapped = _uid_to_badge_cache.get(uid, "")
@@ -2717,8 +2740,8 @@ def _refresh_cache():
     # Supplement with badges already stored in the SQLite punches table for today.
     # This covers employees whose device UIDs did not match their badge at pull time
     # but whose data was correctly stored in a previous sync cycle.
-    # Only add badges that belong to known employees to prevent phantom/wrong UIDs
-    # (e.g., from UID collisions across devices) from showing as present.
+    # Accept a stored badge if it matches a known employee badge exactly OR after
+    # normalising leading zeros (device may store "5" while CSV has "005").
     try:
         today_str = today.strftime("%Y-%m-%d")
         db_sup = get_db()
@@ -2729,13 +2752,21 @@ def _refresh_cache():
         db_sup.close()
         for r in sup_rows:
             b = str(r["badge"]).strip()
-            # Only add if it is a recognised employee badge (or emp set is empty which
-            # means we could not load the file — in that case add unconditionally so we
-            # don't accidentally hide everyone).
-            if b and (not _emp_badges_set or b in _emp_badges_set):
+            if not b:
+                continue
+            # Admit when the emp set is empty (file unavailable — add all to avoid
+            # hiding everyone), or when the badge matches exactly or after normalisation.
+            if (not _emp_badges_set
+                    or b in _emp_badges_set
+                    or _norm_badge(b) in _emp_badges_norm):
                 present_badges_resolved.add(b)
     except Exception as e:
         print("[Cache] DB punch supplement error: {0}".format(e)); sys.stdout.flush()
+
+    # Build a normalised lookup for the final present/absent split so that a
+    # badge stored as "5" is recognised as present for an employee whose CSV
+    # Badgenumber is "005" (or vice-versa).
+    present_badges_norm = {_norm_badge(b) for b in present_badges_resolved}
 
     absent, present, off_today = [], [], []
     for _, emp in emp_df.iterrows():
@@ -2743,7 +2774,7 @@ def _refresh_cache():
         rec = {"name": emp["Name"], "code": badge, "dept": dept}
         if not _is_working_day(today, badge, dept):
             off_today.append(rec)
-        elif badge in present_badges_resolved:
+        elif badge in present_badges_resolved or _norm_badge(badge) in present_badges_norm:
             present.append(rec)
         else:
             absent.append(rec)
@@ -3213,12 +3244,22 @@ def today_report():
             ).fetchall()
             db_sup.close()
             latest_badges = {str(r["badge"]).strip() for r in sup_rows if r["badge"]}
-            # Move any employee in absent whose badge now appears in SQLite to present
+            latest_badges_norm = {_norm_badge(b) for b in latest_badges}
+            # Move any employee in absent whose badge now appears in SQLite to present.
+            # Check both the exact stored badge and its normalised form so that leading-
+            # zero differences (device stores "5", CSV has "005") are bridged.
             cached_present_codes = {e["code"] for e in (data.get("present") or [])}
-            newly_present = [e for e in (data.get("absent") or []) if e["code"] in latest_badges and e["code"] not in cached_present_codes]
+            newly_present = [
+                e for e in (data.get("absent") or [])
+                if (e["code"] in latest_badges or _norm_badge(e["code"]) in latest_badges_norm)
+                and e["code"] not in cached_present_codes
+            ]
             if newly_present:
                 updated_present = list(data.get("present") or []) + newly_present
-                updated_absent  = [e for e in (data.get("absent") or []) if e["code"] not in latest_badges]
+                updated_absent  = [
+                    e for e in (data.get("absent") or [])
+                    if e["code"] not in latest_badges and _norm_badge(e["code"]) not in latest_badges_norm
+                ]
                 updated_present.sort(key=lambda x: (_dept_sort(x["dept"]), x["name"]))
                 updated_absent.sort(key=lambda x:  (_dept_sort(x["dept"]), x["name"]))
                 data["present"]       = updated_present
