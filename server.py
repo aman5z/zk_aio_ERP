@@ -1057,8 +1057,10 @@ def _bot_get_late_today() -> list:
             sh, sm = [int(x) for x in shift_start_str.split(":")]
         except Exception:
             sh, sm = 7, 30
-        from datetime import timedelta as _td
-        latest_ok = first_punch.replace(hour=sh, minute=sm, second=0, microsecond=0) + _td(minutes=grace)
+        latest_ok = (
+            first_punch.replace(hour=sh, minute=sm, second=0, microsecond=0)
+            + timedelta(minutes=grace)
+        )
         if first_punch > latest_ok:
             mins_late = int((first_punch - latest_ok).total_seconds() / 60)
             result.append({
@@ -1096,7 +1098,7 @@ def _bot_get_early_exits() -> list:
             eh, em = [int(x) for x in shift_end_str.split(":")]
         except Exception:
             eh, em = 15, 0
-        shift_end = last_punch.replace(hour=eh, minute=em, second=0, microsecond=0)
+        shift_end = datetime(today.year, today.month, today.day, eh, em, 0)
         if last_punch < shift_end:
             mins_early = int((shift_end - last_punch).total_seconds() / 60)
             result.append({
@@ -1160,9 +1162,8 @@ def _bot_get_punch_feed() -> list:
 
 def _bot_get_week_summary() -> list:
     """Return {date, weekday, present, absent, total} for each day Mon–today this week."""
-    from datetime import timedelta as _td
     today      = date.today()
-    monday     = today - _td(days=today.weekday())
+    monday     = today - timedelta(days=today.weekday())
     total_emps = len(get_employees(active_only=True))
     result     = []
     d = monday
@@ -1176,13 +1177,12 @@ def _bot_get_week_summary() -> list:
             "absent":  max(0, total_emps - present),
             "total":   total_emps,
         })
-        d += _td(days=1)
+        d += timedelta(days=1)
     return result
 
 
 def _bot_get_month_summary() -> dict:
     """Return per-dept attendance rate (%) for working days this month so far."""
-    from datetime import timedelta as _td
     today       = date.today()
     month_start = today.replace(day=1)
     working_days = []
@@ -1190,7 +1190,7 @@ def _bot_get_month_summary() -> dict:
     while d <= today:
         if d.weekday() < 5:
             working_days.append(d)
-        d += _td(days=1)
+        d += timedelta(days=1)
     if not working_days:
         return {}
     emps     = get_employees(active_only=True)
@@ -1217,7 +1217,6 @@ def _bot_get_month_summary() -> dict:
 
 def _bot_get_top_absent() -> list:
     """Return up to 10 employees with the most absent working days this month."""
-    from datetime import timedelta as _td
     today       = date.today()
     month_start = today.replace(day=1)
     working_days = []
@@ -1225,7 +1224,7 @@ def _bot_get_top_absent() -> list:
     while d <= today:
         if d.weekday() < 5:
             working_days.append(d)
-        d += _td(days=1)
+        d += timedelta(days=1)
     if not working_days:
         return []
     emps        = get_employees(active_only=True)

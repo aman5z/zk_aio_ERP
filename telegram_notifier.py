@@ -23,7 +23,7 @@ Configuration (settings.ini [telegram] section):
   daily_report_minute  = 10
 """
 
-import calendar as _calendar
+import calendar
 import io
 import logging
 import threading
@@ -1250,8 +1250,10 @@ class TelegramBotHandler:
         elif mode == "rf":
             prompt = "📆 Select <b>start date</b> for <b>{0}</b>:".format(emp_name)
         elif mode == "rt":
-            rfrom_disp = (rfrom[:4] + "-" + rfrom[4:6] + "-" + rfrom[6:8]
-                          if len(rfrom) == 8 else rfrom)
+            try:
+                rfrom_disp = datetime.strptime(rfrom, "%Y%m%d").strftime("%d %b %Y")
+            except ValueError:
+                rfrom_disp = rfrom
             prompt = "📆 Select <b>end date</b> for <b>{0}</b> (from {1}):".format(
                 emp_name, rfrom_disp)
         else:
@@ -1364,7 +1366,7 @@ class TelegramBotHandler:
             for d in ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"]
         ])
         # Day rows
-        for week in _calendar.monthcalendar(year, month):
+        for week in calendar.monthcalendar(year, month):
             row = []
             for day in week:
                 if day == 0:
@@ -1425,6 +1427,8 @@ class TelegramBotHandler:
             return "\n".join(lines)
 
         # ---- Multi-day -------------------------------------------------
+        # Weekday index at which the weekend starts (Saturday = 5)
+        _WEEKEND_START = 5
         num_days = (date_to - date_from).days + 1
         lines.append("📅 <b>{0} – {1}</b>  ({2} days)".format(
             date_from.strftime("%d %b %Y"),
@@ -1451,7 +1455,7 @@ class TelegramBotHandler:
             while d <= date_to:
                 wd       = d.weekday()
                 day_recs = day_punches.get(d, [])
-                if wd >= 5:  # Sat / Sun
+                if wd >= _WEEKEND_START:  # Saturday or Sunday
                     lines.append("📆 {0}  🏖 Weekend".format(d.strftime("%a %d %b")))
                     weekend_count += 1
                 elif day_recs:
@@ -1478,12 +1482,15 @@ class TelegramBotHandler:
                 d = week_start
                 while d <= min(week_end, date_to):
                     if d >= date_from:
-                        if d.weekday() >= 5:
-                            w_w += 1; weekend_count += 1
+                        if d.weekday() >= _WEEKEND_START:
+                            w_w += 1
+                            weekend_count += 1
                         elif day_punches.get(d):
-                            w_p += 1; present_count += 1
+                            w_p += 1
+                            present_count += 1
                         else:
-                            w_a += 1; absent_count += 1
+                            w_a += 1
+                            absent_count += 1
                     d += timedelta(days=1)
                 lines.append("📅 Week {0}:  ✅{p} ❌{a} 🏖{w}".format(
                     week_start.strftime("%d %b"), p=w_p, a=w_a, w=w_w))
