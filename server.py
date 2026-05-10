@@ -33,6 +33,7 @@ from datetime import datetime, date, timedelta
 import calendar
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from functools import wraps
+from typing import Optional
 warnings.filterwarnings("ignore")
 
 
