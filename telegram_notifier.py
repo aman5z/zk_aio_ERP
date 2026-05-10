@@ -23,11 +23,12 @@ Configuration (settings.ini [telegram] section):
   daily_report_minute  = 10
 """
 
+import calendar as _calendar
 import io
 import logging
 import threading
 import time
-from datetime import datetime
+from datetime import datetime, date, timedelta
 from typing import Optional, Dict, Callable, Any
 
 import httpx
@@ -338,6 +339,16 @@ class TelegramBotHandler:
         get_pending_punches_fn: Callable = None,
         cache_refresh_fn: Callable = None,
         get_employee_punches_fn: Callable = None,
+        # New callbacks for extended commands
+        find_employee_fn: Callable = None,
+        get_punch_records_fn: Callable = None,
+        get_late_today_fn: Callable = None,
+        get_early_exits_fn: Callable = None,
+        get_who_is_in_fn: Callable = None,
+        get_punch_feed_fn: Callable = None,
+        get_week_summary_fn: Callable = None,
+        get_month_summary_fn: Callable = None,
+        get_top_absent_fn: Callable = None,
     ):
         self.bot_token = bot_token.strip() if bot_token else ""
         self.chat_id = str(chat_id).strip() if chat_id else ""
@@ -363,6 +374,16 @@ class TelegramBotHandler:
         self.get_pending_punches_fn = get_pending_punches_fn
         self.cache_refresh_fn = cache_refresh_fn
         self.get_employee_punches_fn = get_employee_punches_fn
+        # Extended callbacks
+        self.find_employee_fn = find_employee_fn
+        self.get_punch_records_fn = get_punch_records_fn
+        self.get_late_today_fn = get_late_today_fn
+        self.get_early_exits_fn = get_early_exits_fn
+        self.get_who_is_in_fn = get_who_is_in_fn
+        self.get_punch_feed_fn = get_punch_feed_fn
+        self.get_week_summary_fn = get_week_summary_fn
+        self.get_month_summary_fn = get_month_summary_fn
+        self.get_top_absent_fn = get_top_absent_fn
 
     # Max rows to include in list-type bot replies (to stay within Telegram's 4096-char limit)
     _MAX_LIST_ITEMS = 30
@@ -424,6 +445,21 @@ class TelegramBotHandler:
                   "text": text, "parse_mode": "HTML"},
         )
 
+    def _edit_message_text_with_markup(self, chat_id: str, message_id: int,
+                                        text: str, reply_markup: dict = None):
+        """Edit a message text and optionally update its inline keyboard."""
+        if len(text) > 4000:
+            text = text[:3990] + "\n…"
+        payload: Dict[str, Any] = {
+            "chat_id": chat_id,
+            "message_id": message_id,
+            "text": text,
+            "parse_mode": "HTML",
+        }
+        if reply_markup:
+            payload["reply_markup"] = reply_markup
+        _post(self._base + "/editMessageText", json=payload)
+
     # ------------------------------------------------------------------ #
     #  Polling loop                                                        #
     # ------------------------------------------------------------------ #
@@ -480,6 +516,10 @@ class TelegramBotHandler:
             self._state.pop(chat_id, None)
             self._handle_user_report_query(chat_id, raw_text)
             return
+        if state_info.get("state") == "awaiting_attendance_query":
+            self._state.pop(chat_id, None)
+            self._handle_attendance_query(chat_id, raw_text)
+            return
 
         # Single-step commands
         if text_lower in ("device status", "/device_status"):
@@ -492,6 +532,10 @@ class TelegramBotHandler:
             self._cmd_device_search_ask(chat_id)
         elif text_lower in ("user report", "/user_report"):
             self._cmd_user_report_ask(chat_id)
+        elif text_lower in ("user attendance", "/user_attendance", "user att"):
+            self._cmd_user_attendance_ask(chat_id)
+        elif text_lower.startswith("user history ") and len(text_lower) > 13:
+            self._cmd_user_history(chat_id, raw_text[13:].strip())
         elif text_lower.startswith("user ") and len(text_lower) > 5:
             # Direct lookup: "user 1024" or "user showkath"
             self._cmd_user_direct(chat_id, raw_text[5:].strip())
@@ -503,6 +547,20 @@ class TelegramBotHandler:
             self._cmd_dept_summary(chat_id)
         elif text_lower in ("cache refresh", "/cache_refresh"):
             self._cmd_cache_refresh(chat_id)
+        elif text_lower in ("late today", "/late_today"):
+            self._cmd_late_today(chat_id)
+        elif text_lower in ("early exits", "/early_exits"):
+            self._cmd_early_exits(chat_id)
+        elif text_lower in ("week summary", "/week_summary"):
+            self._cmd_week_summary(chat_id)
+        elif text_lower in ("month summary", "/month_summary"):
+            self._cmd_month_summary(chat_id)
+        elif text_lower in ("top absent", "/top_absent"):
+            self._cmd_top_absent(chat_id)
+        elif text_lower in ("who is in", "/who_is_in"):
+            self._cmd_who_is_in(chat_id)
+        elif text_lower in ("punch feed", "/punch_feed"):
+            self._cmd_punch_feed(chat_id)
         elif text_lower in ("unknown users", "/unknown_users"):
             self._cmd_unknown_users(chat_id)
         elif text_lower in ("pending punches", "/pending_punches"):
@@ -523,48 +581,80 @@ class TelegramBotHandler:
         data = cq.get("data", "")
         message_id = cq["message"]["message_id"]
 
-        if not data.startswith("reboot:"):
+        # No-op buttons (month header, weekday labels)
+        if data == "cal_noop":
             self._answer_callback(cq["id"])
             return
 
-        target = data[len("reboot:"):]
-        self._answer_callback(cq["id"], "Sending reboot command…")
+        # Cancel attendance lookup
+        if data == "att_cancel":
+            self._state.pop(chat_id, None)
+            self._answer_callback(cq["id"], "Cancelled.")
+            self._edit_message_text(chat_id, message_id, "❌ Attendance lookup cancelled.")
+            return
 
-        if target == "ALL":
-            ips = self.get_device_ips_fn() if self.get_device_ips_fn else []
-            self._edit_message_text(
-                chat_id, message_id,
-                "🔄 Rebooting <b>all {n} devices</b>…".format(n=len(ips))
-            )
-            lines = ["🔴 <b>Reboot All Devices</b>", ""]
-            for ip in ips:
+        # Date choice for attendance (Today / Yesterday / Custom / Range)
+        if data.startswith("att_choice:"):
+            self._answer_callback(cq["id"])
+            self._handle_att_choice_callback(cq)
+            return
+
+        # Calendar month navigation
+        if data.startswith("cal_nav:"):
+            self._answer_callback(cq["id"])
+            self._handle_cal_nav_callback(cq)
+            return
+
+        # Calendar day selection
+        if data.startswith("cal_day:"):
+            self._answer_callback(cq["id"])
+            self._handle_cal_day_callback(cq)
+            return
+
+        # Device reboot
+        if data.startswith("reboot:"):
+            target = data[len("reboot:"):]
+            self._answer_callback(cq["id"], "Sending reboot command…")
+
+            if target == "ALL":
+                ips = self.get_device_ips_fn() if self.get_device_ips_fn else []
+                self._edit_message_text(
+                    chat_id, message_id,
+                    "🔄 Rebooting <b>all {n} devices</b>…".format(n=len(ips))
+                )
+                lines = ["🔴 <b>Reboot All Devices</b>", ""]
+                for ip in ips:
+                    try:
+                        if self.reboot_device_fn:
+                            self.reboot_device_fn(ip)
+                        lines.append("✅ <code>{0}</code> — reboot command sent".format(ip))
+                    except Exception as exc:
+                        lines.append("❌ <code>{0}</code>: {1}".format(ip, str(exc)[:60]))
+                lines.append("\n⏳ Devices will be offline for ~30 seconds.")
+                self._send(chat_id, "\n".join(lines))
+            else:
+                ip = target
+                self._edit_message_text(
+                    chat_id, message_id,
+                    "🔄 Rebooting <code>{0}</code>…".format(ip)
+                )
                 try:
                     if self.reboot_device_fn:
                         self.reboot_device_fn(ip)
-                    lines.append("✅ <code>{0}</code> — reboot command sent".format(ip))
+                    self._send(
+                        chat_id,
+                        "✅ Reboot command sent to <code>{0}</code>.\n"
+                        "⏳ Device will be offline for ~30 seconds.".format(ip),
+                    )
                 except Exception as exc:
-                    lines.append("❌ <code>{0}</code>: {1}".format(ip, str(exc)[:60]))
-            lines.append("\n⏳ Devices will be offline for ~30 seconds.")
-            self._send(chat_id, "\n".join(lines))
-        else:
-            ip = target
-            self._edit_message_text(
-                chat_id, message_id,
-                "🔄 Rebooting <code>{0}</code>…".format(ip)
-            )
-            try:
-                if self.reboot_device_fn:
-                    self.reboot_device_fn(ip)
-                self._send(
-                    chat_id,
-                    "✅ Reboot command sent to <code>{0}</code>.\n"
-                    "⏳ Device will be offline for ~30 seconds.".format(ip),
-                )
-            except Exception as exc:
-                self._send(
-                    chat_id,
-                    "❌ Reboot failed for <code>{0}</code>:\n{1}".format(ip, str(exc)[:120]),
-                )
+                    self._send(
+                        chat_id,
+                        "❌ Reboot failed for <code>{0}</code>:\n{1}".format(ip, str(exc)[:120]),
+                    )
+            return
+
+        # Unknown callback — just acknowledge
+        self._answer_callback(cq["id"])
 
     # ------------------------------------------------------------------ #
     #  Command handlers                                                    #
@@ -754,16 +844,25 @@ class TelegramBotHandler:
             "• <code>today summary</code> — Present/absent/total counts\n"
             "• <code>today absent</code> — Full absent list by department\n"
             "• <code>dept summary</code> — Per-department breakdown\n"
+            "• <code>week summary</code> — Present/absent for each day this week\n"
+            "• <code>month summary</code> — This month's attendance rate per department\n"
+            "• <code>late today</code> — Employees who arrived late today\n"
+            "• <code>early exits</code> — Employees who left early today\n"
+            "• <code>top absent</code> — Top 10 most absent employees this month\n"
+            "• <code>who is in</code> — Who is currently in the office\n"
             "• <code>cache refresh</code> — Trigger an immediate data refresh\n\n"
             "<b>👤 Employees</b>\n"
             "• <code>user search</code> — Search by name/badge with punch timings today\n"
-            "• <code>user &lt;name/badge&gt;</code> — Direct lookup, e.g. <code>user 1024</code> or <code>user john</code>\n"
+            "• <code>user &lt;name/badge&gt;</code> — Direct lookup, e.g. <code>user 1024</code>\n"
+            "• <code>user attendance</code> — Date-wise attendance with calendar picker\n"
+            "• <code>user history &lt;name/badge&gt;</code> — Last 7 days for an employee\n"
             "• <code>user report</code> — Punch times for an employee today\n\n"
             "<b>📡 Devices</b>\n"
             "• <code>device status</code> — Show all device statuses\n"
             "• <code>device sync</code> — Sync time &amp; users across all devices\n"
             "• <code>device reboot</code> — Reboot a device (choose from list)\n"
-            "• <code>unknown users</code> — Badge IDs not in employee list\n\n"
+            "• <code>unknown users</code> — Badge IDs not in employee list\n"
+            "• <code>punch feed</code> — Last 10 punches recorded\n\n"
             "<b>🗄️ System</b>\n"
             "• <code>pending punches</code> — Punch corrections awaiting approval\n"
             "• <code>holiday check</code> — Today's holiday &amp; next 30 days\n"
@@ -1030,6 +1129,573 @@ class TelegramBotHandler:
         self._send(chat_id, "\n".join(lines))
 
 
+
+    # ------------------------------------------------------------------ #
+    #  User Attendance — interactive date picker                           #
+    # ------------------------------------------------------------------ #
+
+    def _cmd_user_attendance_ask(self, chat_id: str):
+        self._state[chat_id] = {"state": "awaiting_attendance_query"}
+        self._send(
+            chat_id,
+            "📅 <b>User Attendance</b>\nEnter employee name or badge number:",
+        )
+
+    def _handle_attendance_query(self, chat_id: str, query: str):
+        if not query:
+            self._send(chat_id, "⚠️ Empty input. Try <code>user attendance</code> again.")
+            return
+        emp = None
+        if self.find_employee_fn:
+            try:
+                emp = self.find_employee_fn(query)
+            except Exception as exc:
+                self._send(chat_id, "❌ Error: {0}".format(str(exc)[:100]))
+                return
+        if not emp:
+            self._send(chat_id, "🔍 No employee found matching <b>{0}</b>".format(query))
+            return
+
+        badge = emp["badge"]
+        name  = emp["name"]
+        dept  = emp.get("dept", "")
+        keyboard = {
+            "inline_keyboard": [
+                [
+                    {"text": "📅 Today",     "callback_data": "att_choice:{0}:today".format(badge)},
+                    {"text": "📅 Yesterday", "callback_data": "att_choice:{0}:yesterday".format(badge)},
+                ],
+                [
+                    {"text": "📆 Custom Date", "callback_data": "att_choice:{0}:custom".format(badge)},
+                    {"text": "📆 Date Range",  "callback_data": "att_choice:{0}:range".format(badge)},
+                ],
+                [{"text": "❌ Cancel", "callback_data": "att_cancel"}],
+            ]
+        }
+        self._send(
+            chat_id,
+            "👤 <b>{name}</b> ({badge}){dept_part}\n\nSelect date period:".format(
+                name=name, badge=badge,
+                dept_part=" — {0}".format(dept) if dept else "",
+            ),
+            reply_markup=keyboard,
+        )
+
+    def _handle_att_choice_callback(self, cq: dict):
+        chat_id    = str(cq["message"]["chat"]["id"])
+        data       = cq.get("data", "")
+        message_id = cq["message"]["message_id"]
+
+        # Format: att_choice:badge:choice
+        parts = data.split(":", 2)
+        if len(parts) < 3:
+            return
+        _, badge, choice = parts
+
+        emp = self._lookup_emp(badge)
+        if not emp:
+            self._edit_message_text(chat_id, message_id, "❌ Employee not found.")
+            return
+
+        today = date.today()
+        if choice == "today":
+            records = self._fetch_punch_records(badge, today, today)
+            self._edit_message_text(chat_id, message_id,
+                                     self._fmt_attendance_report(emp, today, today, records))
+
+        elif choice == "yesterday":
+            d = today - timedelta(days=1)
+            records = self._fetch_punch_records(badge, d, d)
+            self._edit_message_text(chat_id, message_id,
+                                     self._fmt_attendance_report(emp, d, d, records))
+
+        elif choice == "custom":
+            kbd = self._make_calendar_keyboard(today.year, today.month, "s", badge, "")
+            self._edit_message_text_with_markup(
+                chat_id, message_id,
+                "📆 Select a date for <b>{0}</b>:".format(emp["name"]),
+                kbd,
+            )
+
+        elif choice == "range":
+            kbd = self._make_calendar_keyboard(today.year, today.month, "rf", badge, "")
+            self._edit_message_text_with_markup(
+                chat_id, message_id,
+                "📆 Select <b>start date</b> for <b>{0}</b>:".format(emp["name"]),
+                kbd,
+            )
+
+    def _handle_cal_nav_callback(self, cq: dict):
+        """Handle ◀/▶ month navigation on the calendar keyboard."""
+        chat_id    = str(cq["message"]["chat"]["id"])
+        data       = cq.get("data", "")
+        message_id = cq["message"]["message_id"]
+
+        # Format: cal_nav:YYYYMM:mode:badge:rfrom
+        parts = data.split(":", 4)
+        if len(parts) < 5:
+            return
+        _, yyyymm, mode, badge, rfrom = parts
+        try:
+            year  = int(yyyymm[:4])
+            month = int(yyyymm[4:6])
+        except (ValueError, IndexError):
+            return
+
+        emp      = self._lookup_emp(badge)
+        emp_name = emp["name"] if emp else badge
+
+        if mode == "s":
+            prompt = "📆 Select a date for <b>{0}</b>:".format(emp_name)
+        elif mode == "rf":
+            prompt = "📆 Select <b>start date</b> for <b>{0}</b>:".format(emp_name)
+        elif mode == "rt":
+            rfrom_disp = (rfrom[:4] + "-" + rfrom[4:6] + "-" + rfrom[6:8]
+                          if len(rfrom) == 8 else rfrom)
+            prompt = "📆 Select <b>end date</b> for <b>{0}</b> (from {1}):".format(
+                emp_name, rfrom_disp)
+        else:
+            prompt = "📆 Select a date:"
+
+        kbd = self._make_calendar_keyboard(year, month, mode, badge, rfrom)
+        self._edit_message_text_with_markup(chat_id, message_id, prompt, kbd)
+
+    def _handle_cal_day_callback(self, cq: dict):
+        """Handle a day-button tap on the calendar keyboard."""
+        chat_id    = str(cq["message"]["chat"]["id"])
+        data       = cq.get("data", "")
+        message_id = cq["message"]["message_id"]
+
+        # Format: cal_day:YYYYMMDD:mode:badge:rfrom
+        parts = data.split(":", 4)
+        if len(parts) < 5:
+            return
+        _, yyyymmdd, mode, badge, rfrom = parts
+        try:
+            sel_date = datetime.strptime(yyyymmdd, "%Y%m%d").date()
+        except ValueError:
+            return
+
+        emp = self._lookup_emp(badge)
+        if not emp:
+            self._edit_message_text(chat_id, message_id, "❌ Employee not found.")
+            return
+
+        if mode == "s":
+            records = self._fetch_punch_records(badge, sel_date, sel_date)
+            self._edit_message_text(chat_id, message_id,
+                                     self._fmt_attendance_report(emp, sel_date, sel_date, records))
+
+        elif mode == "rf":
+            # Range start chosen — now pick end date in the same or next month
+            kbd = self._make_calendar_keyboard(
+                sel_date.year, sel_date.month, "rt", badge, yyyymmdd)
+            self._edit_message_text_with_markup(
+                chat_id, message_id,
+                "📆 Start: <b>{0}</b>\nNow select <b>end date</b> for <b>{1}</b>:".format(
+                    sel_date.strftime("%d %b %Y"), emp["name"]),
+                kbd,
+            )
+
+        elif mode == "rt":
+            try:
+                date_from = datetime.strptime(rfrom, "%Y%m%d").date()
+            except ValueError:
+                self._edit_message_text(chat_id, message_id, "❌ Invalid date range.")
+                return
+            date_to = sel_date
+            if date_from > date_to:
+                date_from, date_to = date_to, date_from
+            records = self._fetch_punch_records(badge, date_from, date_to)
+            self._edit_message_text(chat_id, message_id,
+                                     self._fmt_attendance_report(emp, date_from, date_to, records))
+
+    # ------------------------------------------------------------------ #
+    #  Calendar & attendance report helpers                                #
+    # ------------------------------------------------------------------ #
+
+    def _lookup_emp(self, badge_or_query: str) -> Optional[dict]:
+        """Return {badge, name, dept} by badge/name via find_employee_fn, or None."""
+        if self.find_employee_fn:
+            try:
+                return self.find_employee_fn(badge_or_query)
+            except Exception:
+                pass
+        return None
+
+    def _fetch_punch_records(self, badge: str, date_from, date_to) -> list:
+        """Return punch records via registered callback."""
+        if self.get_punch_records_fn:
+            try:
+                return self.get_punch_records_fn(badge, date_from, date_to) or []
+            except Exception:
+                pass
+        return []
+
+    def _make_calendar_keyboard(self, year: int, month: int, mode: str,
+                                  badge: str, range_from: str = "") -> dict:
+        """Build an inline month-grid keyboard for date selection.
+
+        Callback data format (all under 64 bytes):
+          cal_nav:YYYYMM:mode:badge:rfrom   — prev/next month navigation
+          cal_day:YYYYMMDD:mode:badge:rfrom — day selection
+        Modes: s=single day  rf=range start  rt=range end
+        """
+        prev_year  = year if month > 1 else year - 1
+        prev_month = month - 1 if month > 1 else 12
+        next_year  = year if month < 12 else year + 1
+        next_month = month + 1 if month < 12 else 1
+        rf_part    = range_from or ""
+        month_name = datetime(year, month, 1).strftime("%B %Y")
+        today_str  = date.today().strftime("%Y%m%d")
+
+        rows = []
+        # Row 1 — navigation
+        rows.append([
+            {"text": "◀", "callback_data": "cal_nav:{0}{1:02d}:{2}:{3}:{4}".format(
+                prev_year, prev_month, mode, badge, rf_part)},
+            {"text": "📅 " + month_name, "callback_data": "cal_noop"},
+            {"text": "▶", "callback_data": "cal_nav:{0}{1:02d}:{2}:{3}:{4}".format(
+                next_year, next_month, mode, badge, rf_part)},
+        ])
+        # Row 2 — weekday headers
+        rows.append([
+            {"text": d, "callback_data": "cal_noop"}
+            for d in ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"]
+        ])
+        # Day rows
+        for week in _calendar.monthcalendar(year, month):
+            row = []
+            for day in week:
+                if day == 0:
+                    row.append({"text": "  ", "callback_data": "cal_noop"})
+                else:
+                    day_str = "{0}{1:02d}{2:02d}".format(year, month, day)
+                    label   = str(day)
+                    if day_str == today_str:
+                        label = "·{0}·".format(day)
+                    if rf_part and day_str == rf_part:
+                        label = "[{0}]".format(day)
+                    row.append({
+                        "text": label,
+                        "callback_data": "cal_day:{0}:{1}:{2}:{3}".format(
+                            day_str, mode, badge, rf_part),
+                    })
+            rows.append(row)
+        # Cancel row
+        rows.append([{"text": "❌ Cancel", "callback_data": "att_cancel"}])
+        return {"inline_keyboard": rows}
+
+    def _fmt_attendance_report(self, emp: dict, date_from, date_to, records: list) -> str:
+        """Format punch records into an HTML attendance report string.
+
+        Single day  → punch-by-punch list.
+        ≤14 days    → per-day detail (IN / OUT, weekends).
+        >14 days    → weekly summary table.
+        Weekend detection uses Mon–Fri as working days (weekday 0–4).
+        """
+        badge = emp.get("badge", "?")
+        name  = emp.get("name",  "?")
+        dept  = emp.get("dept",  "")
+
+        header = "👤 <b>{name}</b> ({badge})".format(name=name, badge=badge)
+        if dept:
+            header += " — {0}".format(dept)
+        lines = [header]
+
+        # ---- Single day ------------------------------------------------
+        if date_from == date_to:
+            lines.append("📅 <b>{0}</b>".format(date_from.strftime("%a %d %b %Y")))
+            lines.append("")
+            if not records:
+                lines.append("❌ No punches recorded.")
+            else:
+                lines.append("✅ <b>{0} punch(es):</b>".format(len(records)))
+                for r in records:
+                    t_str = r.get("punch_time", "")
+                    try:
+                        t_str = datetime.strptime(t_str, "%Y-%m-%d %H:%M:%S").strftime("%I:%M %p")
+                    except Exception:
+                        pass
+                    ip = r.get("device_ip", "")
+                    lines.append("  🕐 {t}{ip}".format(
+                        t=t_str,
+                        ip="  <code>{0}</code>".format(ip) if ip else "",
+                    ))
+            return "\n".join(lines)
+
+        # ---- Multi-day -------------------------------------------------
+        num_days = (date_to - date_from).days + 1
+        lines.append("📅 <b>{0} – {1}</b>  ({2} days)".format(
+            date_from.strftime("%d %b %Y"),
+            date_to.strftime("%d %b %Y"),
+            num_days,
+        ))
+        lines.append("")
+
+        # Build per-day dict of datetimes
+        day_punches: Dict[date, list] = {}
+        for r in records:
+            t_str = r.get("punch_time", "")
+            try:
+                dt = datetime.strptime(t_str, "%Y-%m-%d %H:%M:%S")
+                day_punches.setdefault(dt.date(), []).append(dt)
+            except Exception:
+                pass
+
+        present_count = absent_count = weekend_count = 0
+
+        if num_days <= 14:
+            # Detailed per-day view
+            d = date_from
+            while d <= date_to:
+                wd       = d.weekday()
+                day_recs = day_punches.get(d, [])
+                if wd >= 5:  # Sat / Sun
+                    lines.append("📆 {0}  🏖 Weekend".format(d.strftime("%a %d %b")))
+                    weekend_count += 1
+                elif day_recs:
+                    first = min(day_recs).strftime("%I:%M %p")
+                    last  = max(day_recs).strftime("%I:%M %p") if len(day_recs) > 1 else None
+                    detail = "IN {0}".format(first)
+                    if last:
+                        detail += "  OUT {0}".format(last)
+                    if len(day_recs) == 1:
+                        detail += "  (1 punch)"
+                    lines.append("📆 {0}  ✅  {1}".format(d.strftime("%a %d %b"), detail))
+                    present_count += 1
+                else:
+                    lines.append("📆 {0}  ❌  No punches".format(d.strftime("%a %d %b")))
+                    absent_count += 1
+                d += timedelta(days=1)
+
+        else:
+            # Weekly summary view
+            week_start = date_from - timedelta(days=date_from.weekday())
+            while week_start <= date_to:
+                week_end   = week_start + timedelta(days=6)
+                w_p = w_a = w_w = 0
+                d = week_start
+                while d <= min(week_end, date_to):
+                    if d >= date_from:
+                        if d.weekday() >= 5:
+                            w_w += 1; weekend_count += 1
+                        elif day_punches.get(d):
+                            w_p += 1; present_count += 1
+                        else:
+                            w_a += 1; absent_count += 1
+                    d += timedelta(days=1)
+                lines.append("📅 Week {0}:  ✅{p} ❌{a} 🏖{w}".format(
+                    week_start.strftime("%d %b"), p=w_p, a=w_a, w=w_w))
+                week_start += timedelta(days=7)
+
+        lines.append("")
+        lines.append(
+            "✅ Present: <b>{p}</b>  ❌ Absent: <b>{a}</b>  🏖 Weekend: <b>{w}</b>".format(
+                p=present_count, a=absent_count, w=weekend_count))
+        return "\n".join(lines)
+
+    # ------------------------------------------------------------------ #
+    #  New attendance commands                                             #
+    # ------------------------------------------------------------------ #
+
+    def _cmd_late_today(self, chat_id: str):
+        late = []
+        if self.get_late_today_fn:
+            try:
+                late = self.get_late_today_fn() or []
+            except Exception:
+                pass
+        today_str = date.today().strftime("%d %b %Y")
+        if not late:
+            self._send(chat_id,
+                       "✅ <b>Late Arrivals — {0}</b>\nNo late arrivals today! 🎉".format(today_str))
+            return
+        lines = [
+            "⏰ <b>Late Arrivals — {0}</b>  ({1} employees)".format(today_str, len(late)),
+            "",
+        ]
+        for emp in late[:self._MAX_LIST_ITEMS]:
+            lines.append(
+                "• <b>{name}</b> ({badge}) — {dept}\n"
+                "  Arrived: {first}  (shift: {shift}  +{mins}m late)".format(
+                    name=emp["name"], badge=emp["badge"], dept=emp.get("dept", ""),
+                    first=emp["first_punch"], shift=emp["shift_start"], mins=emp["mins_late"],
+                )
+            )
+        if len(late) > self._MAX_LIST_ITEMS:
+            lines.append("\n… and {0} more.".format(len(late) - self._MAX_LIST_ITEMS))
+        self._send(chat_id, "\n".join(lines))
+
+    def _cmd_early_exits(self, chat_id: str):
+        early = []
+        if self.get_early_exits_fn:
+            try:
+                early = self.get_early_exits_fn() or []
+            except Exception:
+                pass
+        today_str = date.today().strftime("%d %b %Y")
+        if not early:
+            self._send(chat_id,
+                       "✅ <b>Early Exits — {0}</b>\nNo early exits recorded today.".format(today_str))
+            return
+        lines = [
+            "🚪 <b>Early Exits — {0}</b>  ({1} employees)".format(today_str, len(early)),
+            "",
+        ]
+        for emp in early[:self._MAX_LIST_ITEMS]:
+            lines.append(
+                "• <b>{name}</b> ({badge}) — {dept}\n"
+                "  Left: {last}  (shift ends: {shift}  −{mins}m early)".format(
+                    name=emp["name"], badge=emp["badge"], dept=emp.get("dept", ""),
+                    last=emp["last_punch"], shift=emp["shift_end"], mins=emp["mins_early"],
+                )
+            )
+        if len(early) > self._MAX_LIST_ITEMS:
+            lines.append("\n… and {0} more.".format(len(early) - self._MAX_LIST_ITEMS))
+        self._send(chat_id, "\n".join(lines))
+
+    def _cmd_week_summary(self, chat_id: str):
+        summary = []
+        if self.get_week_summary_fn:
+            try:
+                summary = self.get_week_summary_fn() or []
+            except Exception:
+                pass
+        if not summary:
+            self._send(chat_id, "⚠️ No week data available.")
+            return
+        lines = ["📊 <b>This Week's Summary</b>", ""]
+        for day in summary:
+            d_str   = day.get("date", "")
+            weekday = day.get("weekday", "")
+            present = day.get("present", 0)
+            total   = day.get("total", 0)
+            absent  = day.get("absent", 0)
+            pct     = int(round(100 * present / total)) if total else 0
+            bar     = "█" * (pct // 10) + "░" * (10 - pct // 10)
+            lines.append(
+                "<b>{wd} {d}</b>  ✅{p} ❌{a}/{t}  [{bar}] {pct}%".format(
+                    wd=weekday, d=d_str[5:] if len(d_str) >= 7 else d_str,
+                    p=present, a=absent, t=total, bar=bar, pct=pct,
+                )
+            )
+        self._send(chat_id, "\n".join(lines))
+
+    def _cmd_month_summary(self, chat_id: str):
+        summary = {}
+        if self.get_month_summary_fn:
+            try:
+                summary = self.get_month_summary_fn() or {}
+            except Exception:
+                pass
+        if not summary:
+            self._send(chat_id, "⚠️ No month data available.")
+            return
+        month_str = date.today().strftime("%B %Y")
+        lines = ["📅 <b>Month Summary — {0}</b>".format(month_str), ""]
+        for dept in sorted(summary):
+            d   = summary[dept]
+            pct = d.get("attendance_pct", 0)
+            n   = d.get("employees", 0)
+            bar = "█" * (pct // 10) + "░" * (10 - pct // 10)
+            lines.append(
+                "<b>{dept}</b>  ({n} staff)\n"
+                "  Attendance: <b>{pct}%</b>  [{bar}]".format(
+                    dept=dept, n=n, pct=pct, bar=bar,
+                )
+            )
+        self._send(chat_id, "\n".join(lines))
+
+    def _cmd_top_absent(self, chat_id: str):
+        top = []
+        if self.get_top_absent_fn:
+            try:
+                top = self.get_top_absent_fn() or []
+            except Exception:
+                pass
+        if not top:
+            self._send(chat_id, "✅ No absent employees to report this month.")
+            return
+        month_str = date.today().strftime("%B %Y")
+        lines = ["📊 <b>Top Absent — {0}</b>".format(month_str), ""]
+        for i, emp in enumerate(top, 1):
+            working = emp.get("working_days", 0)
+            absent  = emp.get("absent_days",  0)
+            pct     = int(round(100 * absent / working)) if working else 0
+            lines.append(
+                "{i}. <b>{name}</b> ({badge}) — {dept}\n"
+                "   Absent <b>{a}/{w}</b> working days ({pct}%)".format(
+                    i=i, name=emp["name"], badge=emp["badge"],
+                    dept=emp.get("dept", ""), a=absent, w=working, pct=pct,
+                )
+            )
+        self._send(chat_id, "\n".join(lines))
+
+    def _cmd_who_is_in(self, chat_id: str):
+        who = []
+        if self.get_who_is_in_fn:
+            try:
+                who = self.get_who_is_in_fn() or []
+            except Exception:
+                pass
+        today_str = date.today().strftime("%d %b %Y")
+        if not who:
+            self._send(chat_id,
+                       "🏢 <b>Who Is In — {0}</b>\n"
+                       "Office appears empty (no one currently checked in).".format(today_str))
+            return
+        lines = [
+            "🏢 <b>Who Is In — {0}</b>  ({1} people)".format(today_str, len(who)),
+            "",
+        ]
+        dept_groups: Dict[str, list] = {}
+        for emp in who:
+            dept = emp.get("dept") or "Other"
+            dept_groups.setdefault(dept, []).append(emp)
+        for dept in sorted(dept_groups):
+            lines.append("<b>{0}</b>".format(dept))
+            for emp in dept_groups[dept]:
+                lines.append("  • {name} — in since {fp}".format(
+                    name=emp["name"], fp=emp["first_punch"]))
+        self._send(chat_id, "\n".join(lines))
+
+    def _cmd_punch_feed(self, chat_id: str):
+        feed = []
+        if self.get_punch_feed_fn:
+            try:
+                feed = self.get_punch_feed_fn() or []
+            except Exception:
+                pass
+        if not feed:
+            self._send(chat_id, "⚠️ No recent punches found.")
+            return
+        lines = ["📋 <b>Recent Punches (last 10)</b>", ""]
+        for r in feed:
+            badge = r.get("badge", "?")
+            name  = r.get("name") or "Unknown ({0})".format(badge)
+            t_str = r.get("punch_time", "")
+            try:
+                t_str = datetime.strptime(t_str, "%Y-%m-%d %H:%M:%S").strftime("%d %b %I:%M %p")
+            except Exception:
+                pass
+            ip = r.get("device_ip", "")
+            lines.append("🪪 <b>{name}</b>\n  🕐 {t}{ip}".format(
+                name=name, t=t_str,
+                ip="  <code>{0}</code>".format(ip) if ip else "",
+            ))
+        self._send(chat_id, "\n".join(lines))
+
+    def _cmd_user_history(self, chat_id: str, query: str):
+        """Show last 7 days attendance for an employee."""
+        emp = self._lookup_emp(query)
+        if not emp:
+            self._send(chat_id, "🔍 No employee found matching <b>{0}</b>".format(query))
+            return
+        today     = date.today()
+        date_from = today - timedelta(days=6)
+        records   = self._fetch_punch_records(emp["badge"], date_from, today)
+        self._send(chat_id, self._fmt_attendance_report(emp, date_from, today, records))
 
 
 _CATEGORY_MAP = {
