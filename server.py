@@ -1013,6 +1013,266 @@ def _bot_get_employee_punches_today(query: str) -> str:
     return "\n".join(lines)
 
 
+def _bot_find_employee(query: str):
+    """Find an employee by name or badge number. Returns dict {badge, name, dept} or None."""
+    q    = query.strip().lower()
+    emps = get_employees(active_only=False)
+    for emp in emps:
+        badge = str(emp.get("badge", "")).strip()
+        name  = str(emp.get("name",  "")).strip()
+        if q == badge.lower() or q in name.lower():
+            return emp
+    return None
+
+
+def _bot_get_punch_records(badge: str, date_from_str: str, date_to_str: str) -> list:
+    """Get punch records for employee in date range. Dates are YYYY-MM-DD strings."""
+    try:
+        date_from = datetime.strptime(date_from_str, "%Y-%m-%d").date()
+        date_to   = datetime.strptime(date_to_str,   "%Y-%m-%d").date()
+        return get_punch_records_for_employee(badge, date_from, date_to)
+    except Exception:
+        return []
+
+
+def _bot_get_late_today() -> list:
+    """Return list of employees late today (first punch > shift_start + grace_mins)."""
+    today_str = date.today().strftime("%Y-%m-%d")
+    conn = get_db()
+    rows = conn.execute(
+        """SELECT p.badge, MIN(p.punch_time) AS first_punch, e.name, e.dept
+           FROM punches p
+           JOIN employees e ON p.badge = e.badge
+           WHERE p.punch_time >= ? AND p.punch_time <= ? AND e.active = 1
+           GROUP BY p.badge""",
+        (today_str + " 00:00:00", today_str + " 23:59:59"),
+    ).fetchall()
+    conn.close()
+    shift_map = get_shift_times()
+    excluded  = set(d.upper() for d in EXCLUDE_DEPARTMENTS)
+    result    = []
+    for row in rows:
+        dept = (row["dept"] or "").upper()
+        if dept in excluded:
+            continue
+        shift = shift_map.get(dept) or shift_map.get("DEFAULT") or {"start": "07:30", "end": "15:00", "grace": 15}
+        grace_mins    = int(shift.get("grace", 15))
+        start_str     = shift.get("start", "07:30")
+        first_punch   = datetime.strptime(row["first_punch"], "%Y-%m-%d %H:%M:%S")
+        shift_start   = datetime.strptime(today_str + " " + start_str, "%Y-%m-%d %H:%M")
+        cutoff        = shift_start + timedelta(minutes=grace_mins)
+        if first_punch > cutoff:
+            mins_late = int((first_punch - shift_start).total_seconds() / 60)
+            result.append({
+                "badge":       row["badge"],
+                "name":        row["name"],
+                "dept":        row["dept"],
+                "first_punch": first_punch.strftime("%I:%M %p"),
+                "minutes_late": mins_late,
+            })
+    return sorted(result, key=lambda x: -x["minutes_late"])
+
+
+def _bot_get_early_exits() -> list:
+    """Return employees who clocked out before their shift end today."""
+    today_str = date.today().strftime("%Y-%m-%d")
+    now_str   = datetime.now().strftime("%H:%M")
+    conn = get_db()
+    rows = conn.execute(
+        """SELECT p.badge, MAX(p.punch_time) AS last_punch, COUNT(*) AS cnt,
+                  e.name, e.dept
+           FROM punches p
+           JOIN employees e ON p.badge = e.badge
+           WHERE p.punch_time >= ? AND p.punch_time <= ? AND e.active = 1
+           GROUP BY p.badge HAVING cnt > 1""",
+        (today_str + " 00:00:00", today_str + " 23:59:59"),
+    ).fetchall()
+    conn.close()
+    shift_map = get_shift_times()
+    excluded  = set(d.upper() for d in EXCLUDE_DEPARTMENTS)
+    result    = []
+    for row in rows:
+        dept = (row["dept"] or "").upper()
+        if dept in excluded:
+            continue
+        shift    = shift_map.get(dept) or shift_map.get("DEFAULT") or {"start": "07:30", "end": "15:00", "grace": 15}
+        end_str  = shift.get("end", "15:00")
+        if now_str < end_str:
+            continue  # shift not ended yet; everyone still working looks early
+        last_punch   = datetime.strptime(row["last_punch"], "%Y-%m-%d %H:%M:%S")
+        shift_end    = datetime.strptime(today_str + " " + end_str, "%Y-%m-%d %H:%M")
+        if last_punch < shift_end:
+            mins_early = int((shift_end - last_punch).total_seconds() / 60)
+            result.append({
+                "badge":       row["badge"],
+                "name":        row["name"],
+                "dept":        row["dept"],
+                "last_punch":  last_punch.strftime("%I:%M %p"),
+                "minutes_early": mins_early,
+            })
+    return sorted(result, key=lambda x: -x["minutes_early"])
+
+
+def _bot_get_week_summary() -> list:
+    """Return attendance summary (present/absent/total) for each day Mon–today."""
+    today  = date.today()
+    monday = today - timedelta(days=today.weekday())  # Monday of current week
+    emps   = get_employees(active_only=True)
+    excl   = set(d.upper() for d in EXCLUDE_DEPARTMENTS)
+    active = [e for e in emps if e.get("dept", "").upper() not in excl]
+    total  = len(active)
+    result = []
+    d = monday
+    while d <= today:
+        punched = get_punches_for_day(d)
+        present = sum(1 for e in active if e["badge"] in punched)
+        result.append({
+            "date":    d.strftime("%Y-%m-%d"),
+            "weekday": d.strftime("%a"),
+            "present": present,
+            "absent":  total - present,
+            "total":   total,
+        })
+        d += timedelta(days=1)
+    return result
+
+
+def _bot_get_month_dept_summary() -> list:
+    """Return per-department attendance rate for the current month up to today."""
+    today       = date.today()
+    month_start = today.replace(day=1)
+    # Count working days (Mon-Thu = weekday 0-3, Sun = 6) — exclude Fri(4) and Sat(5)
+    working_days = sum(
+        1 for i in range((today - month_start).days + 1)
+        if (month_start + timedelta(days=i)).weekday() not in (4, 5)
+    )
+    start_ts    = month_start.strftime("%Y-%m-%d") + " 00:00:00"
+    end_ts      = today.strftime("%Y-%m-%d")        + " 23:59:59"
+    conn = get_db()
+    rows = conn.execute(
+        """SELECT p.badge, e.dept, COUNT(DISTINCT substr(p.punch_time,1,10)) AS days_present
+           FROM punches p
+           JOIN employees e ON p.badge = e.badge
+           WHERE p.punch_time >= ? AND p.punch_time <= ? AND e.active = 1
+           GROUP BY p.badge""",
+        (start_ts, end_ts),
+    ).fetchall()
+    conn.close()
+    excl = set(d.upper() for d in EXCLUDE_DEPARTMENTS)
+    # build dept_present_sum and dept_total from active employees
+    emps = get_employees(active_only=True)
+    dept_total: dict = {}
+    for e in emps:
+        dept = e.get("dept", "Other")
+        if dept.upper() in excl:
+            continue
+        dept_total[dept] = dept_total.get(dept, 0) + 1
+    dept_present_sum: dict = {}
+    for row in rows:
+        dept = row["dept"] or "Other"
+        if dept.upper() in excl:
+            continue
+        dept_present_sum[dept] = dept_present_sum.get(dept, 0) + row["days_present"]
+    result = []
+    for dept in sorted(dept_total):
+        n   = dept_total[dept]
+        ps  = dept_present_sum.get(dept, 0)
+        pct = int(round(100 * ps / (n * working_days))) if n * working_days > 0 else 0
+        result.append({
+            "dept":         dept,
+            "total":        n,
+            "avg_present":  round(ps / n, 1) if n else 0,
+            "working_days": working_days,
+            "pct":          pct,
+        })
+    return result
+
+
+def _bot_get_top_absent(n: int = 10) -> list:
+    """Return the top N employees with most absent days this month."""
+    today        = date.today()
+    month_start  = today.replace(day=1)
+    # Count working days (Mon-Thu=0-3, Sun=6) — exclude Fri(4) and Sat(5)
+    working_days = sum(
+        1 for i in range((today - month_start).days + 1)
+        if (month_start + timedelta(days=i)).weekday() not in (4, 5)
+    )
+    start_ts     = month_start.strftime("%Y-%m-%d") + " 00:00:00"
+    end_ts       = today.strftime("%Y-%m-%d")        + " 23:59:59"
+    conn = get_db()
+    rows = conn.execute(
+        """SELECT p.badge, COUNT(DISTINCT substr(p.punch_time,1,10)) AS days_present
+           FROM punches p
+           WHERE p.punch_time >= ? AND p.punch_time <= ?
+           GROUP BY p.badge""",
+        (start_ts, end_ts),
+    ).fetchall()
+    conn.close()
+    present_map = {r["badge"]: r["days_present"] for r in rows}
+    excl = set(d.upper() for d in EXCLUDE_DEPARTMENTS)
+    emps = get_employees(active_only=True)
+    absence_data = []
+    for emp in emps:
+        if emp.get("dept", "").upper() in excl:
+            continue
+        badge        = emp["badge"]
+        days_present = present_map.get(badge, 0)
+        days_absent  = max(0, working_days - days_present)
+        if days_absent > 0:
+            absence_data.append({
+                "badge":        badge,
+                "name":         emp["name"],
+                "dept":         emp.get("dept", ""),
+                "days_absent":  days_absent,
+                "days_present": days_present,
+            })
+    absence_data.sort(key=lambda x: -x["days_absent"])
+    return absence_data[:n]
+
+
+def _bot_get_who_is_in() -> list:
+    """Return employees currently 'in' (odd punch count today = punched in but not out)."""
+    today_str = date.today().strftime("%Y-%m-%d")
+    conn = get_db()
+    rows = conn.execute(
+        """SELECT p.badge, COUNT(*) AS cnt, MAX(p.punch_time) AS last_punch,
+                  e.name, e.dept
+           FROM punches p
+           JOIN employees e ON p.badge = e.badge
+           WHERE p.punch_time >= ? AND p.punch_time <= ? AND e.active = 1
+           GROUP BY p.badge HAVING cnt % 2 = 1""",
+        (today_str + " 00:00:00", today_str + " 23:59:59"),
+    ).fetchall()
+    conn.close()
+    excl = set(d.upper() for d in EXCLUDE_DEPARTMENTS)
+    result = []
+    for row in rows:
+        if (row["dept"] or "").upper() in excl:
+            continue
+        result.append({
+            "badge":       row["badge"],
+            "name":        row["name"],
+            "dept":        row["dept"],
+            "last_punch":  row["last_punch"],
+            "punch_count": row["cnt"],
+        })
+    return sorted(result, key=lambda x: x.get("name", ""))
+
+
+def _bot_get_punch_feed(n: int = 20) -> list:
+    """Return the N most recent punch records."""
+    conn = get_db()
+    rows = conn.execute(
+        """SELECT p.badge, p.punch_time, p.device_ip, COALESCE(e.name, '') AS name
+           FROM punches p
+           LEFT JOIN employees e ON p.badge = e.badge
+           ORDER BY p.punch_time DESC LIMIT ?""",
+        (n,),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
 def _init_telegram():
     """Instantiate TelegramNotifier and TelegramBotHandler from settings.ini / DB overrides."""
     global _tg_notifier, _tg_bot_handler, _tg_init_error
@@ -1066,6 +1326,15 @@ def _init_telegram():
             get_pending_punches_fn=_bot_get_pending_punches,
             cache_refresh_fn=_bot_trigger_cache_refresh,
             get_employee_punches_fn=_bot_get_employee_punches_today,
+            find_employee_fn=_bot_find_employee,
+            get_punch_records_fn=_bot_get_punch_records,
+            get_late_today_fn=_bot_get_late_today,
+            get_early_exits_fn=_bot_get_early_exits,
+            get_week_summary_fn=_bot_get_week_summary,
+            get_month_dept_summary_fn=_bot_get_month_dept_summary,
+            get_top_absent_fn=_bot_get_top_absent,
+            get_who_is_in_fn=_bot_get_who_is_in,
+            get_punch_feed_fn=_bot_get_punch_feed,
         )
         _tg_bot_handler.start()
         _tg_init_error = None
