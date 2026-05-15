@@ -15,7 +15,7 @@ A full attendance management solution for ZKTeco biometric devices. It includes 
 | `boot_sync_60d.py` | Startup sync — syncs the last 60 days of logs on system boot |
 | `gaes-py-zk/boot_sync_30d.py` | GAS-edition startup sync — syncs the last 30 days on boot |
 | `mdb_tools.py` | MDB/Access tools — export employees, generate absent reports from MDB backup |
-| `telegram_notifier.py` | Telegram bot helper — sends device status, punch, and daily report notifications |
+| `telegram_notifier.py` | Telegram bot — sends device status, punch, and daily report notifications; interactive command handler for attendance queries, employee lookup, device control, and system stats |
 | `code.gs` | Google Apps Script backend — IT Helpdesk, token queues, Drive storage, and GAS-side authentication |
 
 ---
@@ -73,6 +73,36 @@ A full attendance management solution for ZKTeco biometric devices. It includes 
 - **Telegram:** device online/offline alerts, per-punch notifications, scheduled daily absent report
 - **Email (Gmail SMTP):** scheduled daily absent report with HTML and plain-text body
 - All notification settings configurable from the Admin UI without restarting
+
+#### Telegram Bot Commands
+
+The bot responds to the following text commands (or `/slash` equivalents):
+
+| Category | Command | Description |
+|----------|---------|-------------|
+| **Attendance** | `today summary` | Present / absent / total counts + punch count |
+| | `today absent` | Full absent list grouped by department |
+| | `dept summary` | Per-department attendance breakdown |
+| | `week summary` | Day-by-day present/absent from Mon to today |
+| | `month summary` | Department attendance % for the current month |
+| | `cache refresh` | Trigger an immediate data refresh |
+| **Employees** | `user attendance` | Date-wise punches with inline calendar picker |
+| | `user search` | Search by name or badge; shows today's punch times |
+| | `user <name/badge>` | Direct lookup, e.g. `user 1024` |
+| | `user report` | Punch times for a specific employee today |
+| | `late today` | Employees who arrived after their shift start |
+| | `early exits` | Employees who left before their shift end |
+| | `who is in` | Employees currently in the office |
+| | `top absent` | Top 10 most absent employees this month |
+| **Devices** | `device status` | Online / offline status of all devices |
+| | `device sync` | Sync time and users across all devices |
+| | `device reboot` | Reboot a device (interactive list) |
+| | `unknown users` | Badge IDs not matched to any employee |
+| | `punch feed` | 20 most recent punch records |
+| **System** | `pending punches` | Punch corrections awaiting approval |
+| | `holiday check` | Today's holiday and upcoming holidays (30 days) |
+| | `db stats` | Employee count, total records, and DB file size |
+| | `help` | Show the full command reference |
 
 ### IT Services & Collaboration
 - **Helpdesk Ticketing:** create, assign, and track IT support tickets with priority levels and due dates
@@ -239,6 +269,7 @@ Edit `settings.ini` to configure device IPs, departments, session timeouts, Tele
 | `[sessions]` | Session lifetime, admin/employee inactivity timeout |
 | `[app]` | Version string, default admin password |
 | `[telegram]` | Bot token, chat ID, per-notification toggles, daily report time |
+| `[voip]` | Optional TURN server URL, username, and credential for WebRTC audio through NAT |
 
 ---
 
@@ -330,6 +361,7 @@ It features full PWA support, offline punch caching via IndexedDB, four UI theme
 - **Scheduled Telegram Report:** Daily absent summary sent to a Telegram group or channel at a configured time.
 - **Per-Punch Telegram Alerts:** Instant notification for every punch event (togglable).
 - **Device Status Alerts:** Telegram notification when any device goes online or offline.
+- **Interactive Telegram Bot:** Query attendance, look up employees, control devices, and pull system stats directly from any Telegram chat using the built-in bot commands (see [Telegram Bot Commands](#telegram-bot-commands) above).
 
 ---
 
