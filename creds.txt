@@ -1,5 +1,5 @@
 # ── Admin ──────────────────────────────────────────────
-default_admin_password=Gaesous180
+default_admin_password=123456
 
 # ── Telegram (server.py / main.py) ────────────────────
 telegram_bot_token=8426829392:AAFf4amEMA8SdIxT0psH-BYRbFzBOztYvtY
