@@ -314,10 +314,12 @@ def main():
     config = load_telegram_config()
     _creds = _load_creds_txt()
     # Override config.json telegram/endpoint values from creds.txt if present
-    if _creds.get('gaes_telegram_bot_token'):
-        config.setdefault('telegram', {})['bot_token'] = _creds['gaes_telegram_bot_token']
-    if _creds.get('gaes_telegram_chat_id'):
-        config.setdefault('telegram', {})['chat_id'] = _creds['gaes_telegram_chat_id']
+    if _creds.get('gaes_telegram_bot_token') or _creds.get('gaes_telegram_chat_id'):
+        tg_config = config.setdefault('telegram', {})
+        if _creds.get('gaes_telegram_bot_token'):
+            tg_config['bot_token'] = _creds['gaes_telegram_bot_token']
+        if _creds.get('gaes_telegram_chat_id'):
+            tg_config['chat_id'] = _creds['gaes_telegram_chat_id']
     if _creds.get('gaes_sync_endpoint'):
         config['endpoint'] = _creds['gaes_sync_endpoint']
     tg_cfg = config.get("telegram", {})

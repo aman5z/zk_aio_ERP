@@ -702,7 +702,7 @@ DEVICE_PULL_TIMEOUT = _cfg_int ('devices', 'pull_timeout',  120)
 CACHE_REFRESH_MINS  = _cfg_int ('server',  'cache_refresh_mins', 5)
 APP_VERSION        = _cfg     ('app',     'version', '2.2')
 
-DEFAULT_ADMIN_PASSWORD = _cfg('app', 'default_admin_password', '') or 'admin'
+DEFAULT_ADMIN_PASSWORD = _cfg('app', 'default_admin_password', '')
 
 EXCLUDE_DEPARTMENTS   = _cfg_list('departments', 'exclude',
                             ["DELETED EMPLOYEES","TRANSPORT","GAES","GULF ASIAN ENGLISH SCHOOL"])
@@ -1623,15 +1623,21 @@ def _load_users():
         except Exception:
             pass
     # Bootstrap: create default admin
+    _pw = DEFAULT_ADMIN_PASSWORD
+    if not _pw:
+        import secrets
+        _pw = secrets.token_urlsafe(12)
+        print("[Auth] No default_admin_password set — generated random password for admin."); sys.stdout.flush()
+        print("[Auth] Set it in creds.txt to control the initial password."); sys.stdout.flush()
     users = {
         "admin": {
-            "password_hash": _hash_pw(DEFAULT_ADMIN_PASSWORD),
+            "password_hash": _hash_pw(_pw),
             "role": "admin",
             "name": "Administrator",
             "badge": None,
             "permissions": {k: True for k in PERM_KEYS},
             "theme": "dark",
-            "must_change_password": False,
+            "must_change_password": True,
         }
     }
     _save_users(users)
@@ -2878,7 +2884,7 @@ def _seed_db_from_creds():
             db_manager.set_setting(db_key, val)
             seeded.append(db_key)
     if seeded:
-        print("[Config] Seeded DB settings from creds.txt: {0}".format(', '.join(seeded))); sys.stdout.flush()
+        print("[Config] Seeded {0} setting(s) from creds.txt into DB.".format(len(seeded))); sys.stdout.flush()
 
 def start_background_refresh():
     global _badge_workdays, _schedule_loaded
@@ -6551,7 +6557,7 @@ if __name__ == "__main__":
     print("  Folder        : {0}".format(SCRIPT_DIR))
     print("  Open browser  -> http://localhost:5000/d")
     print("  Also works    -> http://127.0.0.1:5000/d")
-    print("  Default login -> admin / {0}".format(DEFAULT_ADMIN_PASSWORD))
+    print("  Default login -> admin / (see creds.txt or set via admin UI)")
     print("="*58 + "\n")
     start_background_refresh()
     if SOCKETIO_AVAILABLE and socketio:
