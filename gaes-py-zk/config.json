@@ -1,5 +1,5 @@
 {
-    "endpoint": "https://gaes.paceeducation.com/erp-api/sync/empAttSync.php",
+    "endpoint": "",
     "devices": [
         {
             "device_id": 1,
@@ -25,8 +25,8 @@
     "log_level": "INFO",
     "name":"GAES-attendance",
     "telegram": {
-    "bot_token": "8744699402:AAGaLz0HWIBKYHzWBfr_qr6U3BrUe7lJ2A4",
-    "chat_id": "-1003063465563",
+    "bot_token": "",
+    "chat_id": "",
     "enabled": true,
     "notifications": {
       "startup": true,

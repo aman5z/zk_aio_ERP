@@ -637,6 +637,48 @@ def _load_config():
 
 _CFG = _load_config()
 
+# ── Load creds.txt (overrides settings.ini credential values) ──────────────────
+def _load_creds_txt():
+    """Load creds.txt from SCRIPT_DIR. Returns a flat dict of KEY -> value."""
+    creds_path = os.path.join(SCRIPT_DIR, 'creds.txt')
+    if not os.path.exists(creds_path):
+        return {}
+    creds = {}
+    try:
+        with open(creds_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith('#'):
+                    continue
+                if '=' in line:
+                    k, _, v = line.partition('=')
+                    creds[k.strip()] = v.strip()
+        print("[Config] Loaded creds.txt"); sys.stdout.flush()
+    except Exception as e:
+        print("[Config] Warning: could not read creds.txt: {0}".format(e)); sys.stdout.flush()
+    return creds
+
+_CREDS = _load_creds_txt()
+
+def _apply_creds_to_cfg(cfg):
+    """Inject credential values from creds.txt into the ConfigParser object."""
+    mapping = {
+        'default_admin_password': ('app',      'default_admin_password'),
+        'telegram_bot_token':     ('telegram', 'bot_token'),
+        'telegram_chat_id':       ('telegram', 'chat_id'),
+        'voip_turn_url':          ('voip',     'turn_url'),
+        'voip_turn_user':         ('voip',     'turn_user'),
+        'voip_turn_cred':         ('voip',     'turn_cred'),
+    }
+    for ck, (section, key) in mapping.items():
+        v = _CREDS.get(ck, '')
+        if v:
+            if not cfg.has_section(section):
+                cfg.add_section(section)
+            cfg.set(section, key, v)
+
+_apply_creds_to_cfg(_CFG)
+
 def _cfg(section, key, default):
     try:    return _CFG.get(section, key).strip()
     except: return default
@@ -660,7 +702,7 @@ DEVICE_PULL_TIMEOUT = _cfg_int ('devices', 'pull_timeout',  120)
 CACHE_REFRESH_MINS  = _cfg_int ('server',  'cache_refresh_mins', 5)
 APP_VERSION        = _cfg     ('app',     'version', '2.2')
 
-DEFAULT_ADMIN_PASSWORD = _cfg('app', 'default_admin_password', 'Gaesous180')
+DEFAULT_ADMIN_PASSWORD = _cfg('app', 'default_admin_password', '')
 
 EXCLUDE_DEPARTMENTS   = _cfg_list('departments', 'exclude',
                             ["DELETED EMPLOYEES","TRANSPORT","GAES","GULF ASIAN ENGLISH SCHOOL"])
@@ -1581,15 +1623,21 @@ def _load_users():
         except Exception:
             pass
     # Bootstrap: create default admin
+    _pw = DEFAULT_ADMIN_PASSWORD
+    if not _pw:
+        import secrets
+        _pw = secrets.token_urlsafe(12)
+        print("[Auth] No default_admin_password set — generated random password for admin."); sys.stdout.flush()
+        print("[Auth] Set it in creds.txt to control the initial password."); sys.stdout.flush()
     users = {
         "admin": {
-            "password_hash": _hash_pw(DEFAULT_ADMIN_PASSWORD),
+            "password_hash": _hash_pw(_pw),
             "role": "admin",
             "name": "Administrator",
             "badge": None,
             "permissions": {k: True for k in PERM_KEYS},
             "theme": "dark",
-            "must_change_password": False,
+            "must_change_password": True,
         }
     }
     _save_users(users)
@@ -2817,6 +2865,27 @@ def _auto_backup():
     except Exception as e:
         print("[Backup] Auto-backup failed: {0}".format(e)); sys.stdout.flush()
 
+def _seed_db_from_creds():
+    """Seed DB settings from creds.txt on first run (only fills currently blank values)."""
+    db_seeds = {
+        'gas_url':            _CREDS.get('gas_url', ''),
+        'gas_mail':           _CREDS.get('gas_mail', ''),
+        'gas_pass':           _CREDS.get('gas_pass', ''),
+        'email_smtp_host':    _CREDS.get('email_smtp_host', ''),
+        'email_smtp_port':    _CREDS.get('email_smtp_port', ''),
+        'email_sender':       _CREDS.get('email_sender', ''),
+        'email_app_password': _CREDS.get('email_app_password', ''),
+        'tg_bot_token':       _CREDS.get('telegram_bot_token', ''),
+        'tg_chat_id':         _CREDS.get('telegram_chat_id', ''),
+    }
+    seeded = []
+    for db_key, val in db_seeds.items():
+        if val and not db_manager.get_setting(db_key, ''):
+            db_manager.set_setting(db_key, val)
+            seeded.append(db_key)
+    if seeded:
+        print("[Config] Seeded {0} setting(s) from creds.txt into DB.".format(len(seeded))); sys.stdout.flush()
+
 def start_background_refresh():
     global _badge_workdays, _schedule_loaded
     # Auto-backup existing DB before anything else
@@ -2824,6 +2893,7 @@ def start_background_refresh():
     # Init SQLite database
     try:
         db_manager.init_db()
+        _seed_db_from_creds()
         # Auto-import employees from CSV on first run
         if db_manager.get_db_stats()["employees"] == 0:
             try:
@@ -6487,7 +6557,7 @@ if __name__ == "__main__":
     print("  Folder        : {0}".format(SCRIPT_DIR))
     print("  Open browser  -> http://localhost:5000/d")
     print("  Also works    -> http://127.0.0.1:5000/d")
-    print("  Default login -> admin / {0}".format(DEFAULT_ADMIN_PASSWORD))
+    print("  Default login -> admin / (see creds.txt or set via admin UI)")
     print("="*58 + "\n")
     start_background_refresh()
     if SOCKETIO_AVAILABLE and socketio:

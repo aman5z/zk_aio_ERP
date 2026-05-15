@@ -1,6 +1,6 @@
 const SHEET_ID        = "1sbKGknuz6xB1xdohKec4dvnb6Ifvnb6BeDdeklocMgo";
 const FOLDER_ID       = "1rgi0M0glLySObvzjVV5B1-NCPkpdul9p";
-const ADMIN_EMAIL_CFG = "amanfaizal04@gmail.com";
+const ADMIN_EMAIL_CFG = "";
 const WHATSAPP_NUMBER = "917356188530";
 const WHATSAPP_APIKEY = "YOUR_API_KEY";
 const SESSION_HOURS   = 24;

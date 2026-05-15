@@ -91,7 +91,39 @@ def load_config():
         logger.error(f"Failed to load config.json: {e}")
         sys.exit(1)
 
+def _load_creds_txt():
+    """Load creds.txt from script directory or its parent. Returns a flat dict."""
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    for d in (script_dir, os.path.dirname(script_dir)):
+        path = os.path.join(d, 'creds.txt')
+        if os.path.exists(path):
+            creds = {}
+            try:
+                with open(path, 'r', encoding='utf-8') as f:
+                    for line in f:
+                        line = line.strip()
+                        if not line or line.startswith('#'):
+                            continue
+                        if '=' in line:
+                            k, _, v = line.partition('=')
+                            creds[k.strip()] = v.strip()
+                return creds
+            except Exception:
+                pass
+    return {}
+
 config = load_config()
+_creds = _load_creds_txt()
+
+# Override config.json telegram/endpoint values from creds.txt if present
+if _creds.get('gaes_telegram_bot_token') or _creds.get('gaes_telegram_chat_id'):
+    tg_config = config.setdefault('telegram', {})
+    if _creds.get('gaes_telegram_bot_token'):
+        tg_config['bot_token'] = _creds['gaes_telegram_bot_token']
+    if _creds.get('gaes_telegram_chat_id'):
+        tg_config['chat_id'] = _creds['gaes_telegram_chat_id']
+if _creds.get('gaes_sync_endpoint'):
+    config['endpoint'] = _creds['gaes_sync_endpoint']
 ENDPOINT = config["endpoint"]
 BUFFER_LIMIT = int(config["buffer_limit"])
 DEVICES = config["devices"]
